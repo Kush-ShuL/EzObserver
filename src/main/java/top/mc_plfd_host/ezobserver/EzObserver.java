@@ -64,4 +64,4 @@ public class EzObserver extends JavaPlugin {
     public WorldScanner getWorldScanner() {
         return worldScanner;
     }
-yi
+}
