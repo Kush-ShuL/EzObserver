@@ -19,21 +19,21 @@ public class EzObserver extends JavaPlugin {
     public void onEnable() {
         instance = this;
         
-        // 初始化配置管理器
+        // Initialize config manager
         configManager = new ConfigManager(this);
         configManager.loadConfig();
         
-        // 初始化消息管理器
+        // Initialize message manager
         messageManager = new MessageManager(this);
         messageManager.loadMessages();
         
-        // 初始化扫描器
+        // Initialize scanner
         worldScanner = new WorldScanner(this);
         
-        // 注册事件监听器
+        // Register event listener
         getServer().getPluginManager().registerEvents(new ItemMoveListener(this), this);
         
-        // 注册命令
+        // Register command
         EzObserverCommand commandExecutor = new EzObserverCommand(this);
         PluginCommand command = getCommand("ezobserver");
         if (command != null) {
@@ -41,12 +41,12 @@ public class EzObserver extends JavaPlugin {
             command.setTabCompleter(commandExecutor);
         }
         
-        getLogger().info("EzObserver 已启用 - 作者: Kush_ShuL");
+        getLogger().info("EzObserver enabled - Author: Kush_ShuL");
     }
 
     @Override
     public void onDisable() {
-        getLogger().info("EzObserver 已禁用");
+        getLogger().info("EzObserver disabled");
     }
 
     public static EzObserver getInstance() {
@@ -64,4 +64,4 @@ public class EzObserver extends JavaPlugin {
     public WorldScanner getWorldScanner() {
         return worldScanner;
     }
-}
+yi

@@ -1,63 +1,63 @@
-# EzObserver 消息配置文件
-# 作者: Kush_ShuL
+# EzObserver Message Configuration File
+# Author: Kush_ShuL
 #
-# 配色设计原则:
-# &6 金色 - 标题、重要信息
-# &a 绿色 - 成功、积极操作
-# &c 红色 - 错误、警告、删除
-# &e 黄色 - 提示信息
-# &7 灰色 - 次要信息、参数说明
-# &f 白色 - 主要内容、玩家名称
+# Color Design Principles:
+# &6 Gold - Titles, Important Information
+# &a Green - Success, Positive Actions
+# &c Red - Errors, Warnings, Deletions
+# &e Yellow - Prompts, Tips
+# &7 Gray - Secondary Information, Parameter Descriptions
+# &f White - Main Content, Player Names
 
-# 前缀
+# Prefix
 prefix: "&6[EzObserver]"
 
-# 通用消息
-no-permission: "&c你没有权限执行此命令!"
-config-reloaded: "&a配置已重新加载!"
-player-only: "&c此命令只能由玩家执行!"
+# General Messages
+no-permission: "&cYou do not have permission to execute this command!"
+config-reloaded: "&aConfiguration reloaded successfully!"
+player-only: "&cThis command can only be executed by a player!"
 
-# 帮助消息
-help-header: "&6========== EzObserver 帮助 =========="
-help-reload: "&e/ezobserver reload &7- 重新加载配置"
-help-status: "&e/ezobserver status &7- 查看插件状态"
-help-scan: "&e/ezobserver scan &7- 开始全服扫描"
-help-check: "&e/ezobserver check &7- 检查手中物品"
+# Help Messages
+help-header: "&6========== EzObserver Help =========="
+help-reload: "&e/ezobserver reload &7- Reloads the configuration"
+help-status: "&e/ezobserver status &7- Displays plugin status"
+help-scan: "&e/ezobserver scan &7- Starts a full server scan"
+help-check: "&e/ezobserver check &7- Checks the item in hand"
 help-footer: "&6====================================="
 
-# 状态消息
-status-header: "&6========== EzObserver 状态 =========="
-status-enabled: "&e插件状态: {status}"
-status-log-violations: "&e违规日志: {status}"
-status-confiscate: "&e没收物品: {status}"
-status-confiscate-mode: "&e没收模式: &f{mode}"
-status-banned-items: "&e禁止物品检测: {status}"
-status-op-items: "&eOP物品检测: {status}"
+# Status Messages
+status-header: "&6========== EzObserver Status =========="
+status-enabled: "&ePlugin Status: {status}"
+status-log-violations: "&eViolation Logging: {status}"
+status-confiscate: "&eConfiscate Items: {status}"
+status-confiscate-mode: "&eConfiscation Mode: &f{mode}"
+status-banned-items: "&eBanned Item Detection: {status}"
+status-op-items: "&eOP Item Detection: {status}"
 status-footer: "&6====================================="
 
-# 开关状态
-status-on: "&a开启"
-status-off: "&c关闭"
+# Toggle Status
+status-on: "&aOn"
+status-off: "&cOff"
 
-# 扫描消息
-scan-already-running: "&c扫描正在进行中，请稍后再试"
-scan-started: "&a开始全服扫描..."
-scan-error: "&c扫描过程中发生错误: &7{error}"
-scan-complete: "&a全服扫描完成!"
-scan-chunks: "&e扫描区块: &f{count}"
-scan-containers: "&e扫描容器: &f{count}"
-scan-players: "&e扫描玩家: &f{count}"
-scan-violations: "&e发现违规: &c{count}"
-scan-deleted: "&e已删除物品: &c{count}"
-scan-fixed: "&e已修正物品: &a{count}"
+# Scan Messages
+scan-already-running: "&cScan is already in progress, please try again later"
+scan-started: "&aStarting full server scan..."
+scan-error: "&cAn error occurred during scan: &7{error}"
+scan-complete: "&aFull server scan complete!"
+scan-chunks: "&eScanned Chunks: &f{count}"
+scan-containers: "&eScanned Containers: &f{count}"
+scan-players: "&eScanned Players: &f{count}"
+scan-violations: "&eViolations Found: &c{count}"
+scan-deleted: "&eItems Deleted: &c{count}"
+scan-fixed: "&eItems Fixed: &a{count}"
 
-# 违规广播消息
-broadcast-delete: "&6[EzObserver] &e玩家 &f{player} &e持有违规物品 &f{item}&e: &c{reason} &7物品已删除"
-broadcast-store: "&6[EzObserver] &e玩家 &f{player} &e持有违规物品 &f{item}&e: &c{reason} &7物品已没收"
-broadcast-fix: "&6[EzObserver] &e玩家 &f{player} &e持有违规物品 &f{item}&e: &c{reason} &a正在尝试修正违规属性..."
+# Violation Broadcast Messages
+broadcast-delete: "&6[EzObserver] &ePlayer &f{player} &ehad illegal item &f{item}&e: &c{reason} &7Item deleted"
+broadcast-store: "&6[EzObserver] &ePlayer &f{player} &ehad illegal item &f{item}&e: &c{reason} &7Item confiscated"
+broadcast-fix: "&6[EzObserver] &ePlayer &f{player} &ehad illegal item &f{item}&e: &c{reason} &aAttempting to fix illegal attributes..."
 
-# 检查消息
-check-no-item: "&c你手中没有物品!"
-check-safe: "&a物品检查通过，没有发现违规!"
-check-violations: "&c发现以下违规:"
+# Check Messages
+check-no-item: "&cYou are not holding any item!"
+check-safe: "&aItem check passed, no violations found!"
+check-violations: "&cViolations found:"
 check-violation-item: "&7- &e{violation}"
