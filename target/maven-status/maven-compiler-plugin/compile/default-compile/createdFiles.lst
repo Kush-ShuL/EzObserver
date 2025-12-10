@@ -1,8 +1,0 @@
-top\mc_plfd_host\ezobserver\config\ConfigManager.class
-top\mc_plfd_host\ezobserver\listener\ItemMoveListener.class
-top\mc_plfd_host\ezobserver\checker\ItemChecker.class
-top\mc_plfd_host\ezobserver\command\EzObserverCommand.class
-top\mc_plfd_host\ezobserver\EzObserver.class
-top\mc_plfd_host\ezobserver\fixer\ItemFixer.class
-top\mc_plfd_host\ezobserver\scanner\WorldScanner.class
-top\mc_plfd_host\ezobserver\config\MessageManager.class
