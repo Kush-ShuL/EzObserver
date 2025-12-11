@@ -7,10 +7,14 @@ import org.bukkit.Material;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.inventory.meta.SpawnEggMeta;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import top.mc_plfd_host.ezobserver.EzObserver;
 import top.mc_plfd_host.ezobserver.config.ConfigManager;
 import top.mc_plfd_host.ezobserver.config.EnchantmentConflictManager;
+import top.mc_plfd_host.ezobserver.config.PotionEffectLimitManager;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -24,11 +28,13 @@ public class ItemFixer {
     private final EzObserver plugin;
     private final ConfigManager configManager;
     private final EnchantmentConflictManager conflictManager;
+    private final PotionEffectLimitManager potionEffectLimitManager;
 
     public ItemFixer(EzObserver plugin) {
         this.plugin = plugin;
         this.configManager = plugin.getConfigManager();
         this.conflictManager = plugin.getEnchantmentConflictManager();
+        this.potionEffectLimitManager = plugin.getPotionEffectLimitManager();
     }
 
     public ItemStack fixItem(ItemStack item) {
@@ -49,6 +55,9 @@ public class ItemFixer {
 
         // 修正刷怪蛋NBT
         fixSpawnEggNbt(fixedItem);
+
+        // 修正药水效果
+        fixPotionEffects(fixedItem);
 
         // 修正属性修饰符
         if (fixedItem.hasItemMeta()) {
@@ -389,5 +398,55 @@ public class ItemFixer {
             return name.substring(0, name.length() - "_SPAWN_EGG".length());
         }
         return null;
+    }
+
+    /**
+     * 修正药水效果
+     * 移除超过正常最大等级+2的药水效果
+     */
+    private void fixPotionEffects(ItemStack item) {
+        // 检查是否是药水类物品
+        Material type = item.getType();
+        if (type != Material.POTION && type != Material.SPLASH_POTION &&
+            type != Material.LINGERING_POTION && type != Material.TIPPED_ARROW) {
+            return;
+        }
+        
+        if (!item.hasItemMeta() || !(item.getItemMeta() instanceof PotionMeta)) {
+            return;
+        }
+        
+        PotionMeta potionMeta = (PotionMeta) item.getItemMeta();
+        boolean metaChanged = false;
+        
+        // 检查并移除超限的自定义药水效果
+        if (potionMeta.hasCustomEffects()) {
+            List<PotionEffect> effectsToRemove = new ArrayList<>();
+            
+            for (PotionEffect effect : potionMeta.getCustomEffects()) {
+                String effectName = effect.getType().getName();
+                int amplifier = effect.getAmplifier();
+                
+                // 检查是否超过限制
+                if (potionEffectLimitManager != null && potionEffectLimitManager.isOverLimit(effectName, amplifier)) {
+                    effectsToRemove.add(effect);
+                    int limitLevel = potionEffectLimitManager.getLimitLevel(effectName);
+                    plugin.getLogger().info(String.format("药水效果 %s 等级 %d 超过限制 %d，将被移除",
+                        effectName, amplifier + 1, limitLevel + 1));
+                }
+            }
+            
+            // 移除超限的效果
+            for (PotionEffect effect : effectsToRemove) {
+                potionMeta.removeCustomEffect(effect.getType());
+                metaChanged = true;
+            }
+        }
+        
+        // 如果有修改，更新物品元数据
+        if (metaChanged) {
+            item.setItemMeta(potionMeta);
+            plugin.getLogger().info("已修正药水效果: " + item.getType().name());
+        }
     }
 }

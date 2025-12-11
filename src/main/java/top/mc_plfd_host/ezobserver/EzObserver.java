@@ -6,7 +6,9 @@ import top.mc_plfd_host.ezobserver.command.EzObserverCommand;
 import top.mc_plfd_host.ezobserver.config.ConfigManager;
 import top.mc_plfd_host.ezobserver.config.EnchantmentConflictManager;
 import top.mc_plfd_host.ezobserver.config.MessageManager;
+import top.mc_plfd_host.ezobserver.config.PotionEffectLimitManager;
 import top.mc_plfd_host.ezobserver.listener.ItemMoveListener;
+import top.mc_plfd_host.ezobserver.listener.PlayerEffectListener;
 import top.mc_plfd_host.ezobserver.scanner.WorldScanner;
 
 public class EzObserver extends JavaPlugin {
@@ -14,8 +16,10 @@ public class EzObserver extends JavaPlugin {
     private static EzObserver instance;
     private ConfigManager configManager;
     private EnchantmentConflictManager enchantmentConflictManager;
+    private PotionEffectLimitManager potionEffectLimitManager;
     private MessageManager messageManager;
     private WorldScanner worldScanner;
+    private PlayerEffectListener playerEffectListener;
 
     @Override
     public void onEnable() {
@@ -28,6 +32,9 @@ public class EzObserver extends JavaPlugin {
         // Initialize enchantment conflict manager
         enchantmentConflictManager = new EnchantmentConflictManager(configManager);
         
+        // Initialize potion effect limit manager
+        potionEffectLimitManager = new PotionEffectLimitManager();
+        
         // Initialize message manager
         messageManager = new MessageManager(this);
         messageManager.loadMessages();
@@ -37,6 +44,10 @@ public class EzObserver extends JavaPlugin {
         
         // Register event listener
         getServer().getPluginManager().registerEvents(new ItemMoveListener(this), this);
+        
+        // Register player effect listener (only triggers on effect updates for high performance)
+        playerEffectListener = new PlayerEffectListener(this);
+        getServer().getPluginManager().registerEvents(playerEffectListener, this);
         
         // Register command
         EzObserverCommand commandExecutor = new EzObserverCommand(this);
@@ -72,5 +83,9 @@ public class EzObserver extends JavaPlugin {
 
     public EnchantmentConflictManager getEnchantmentConflictManager() {
         return enchantmentConflictManager;
+    }
+
+    public PotionEffectLimitManager getPotionEffectLimitManager() {
+        return potionEffectLimitManager;
     }
 }

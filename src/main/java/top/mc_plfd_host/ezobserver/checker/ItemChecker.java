@@ -13,6 +13,7 @@ import org.bukkit.potion.PotionEffectType;
 import top.mc_plfd_host.ezobserver.EzObserver;
 import top.mc_plfd_host.ezobserver.config.ConfigManager;
 import top.mc_plfd_host.ezobserver.config.EnchantmentConflictManager;
+import top.mc_plfd_host.ezobserver.config.PotionEffectLimitManager;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -25,11 +26,13 @@ public class ItemChecker {
     private final EzObserver plugin;
     private final ConfigManager configManager;
     private final EnchantmentConflictManager conflictManager;
+    private final PotionEffectLimitManager potionEffectLimitManager;
 
     public ItemChecker(EzObserver plugin) {
         this.plugin = plugin;
         this.configManager = plugin.getConfigManager();
         this.conflictManager = plugin.getEnchantmentConflictManager();
+        this.potionEffectLimitManager = plugin.getPotionEffectLimitManager();
     }
 
     public List<String> checkItem(ItemStack item) {
@@ -303,17 +306,34 @@ public class ItemChecker {
             return violations;
         }
         
-        // 检查药水效果等级
-        int amplifierLimit;
-        if (configManager.hasPotionEffectLimit(effectName)) {
-            amplifierLimit = configManager.getPotionEffectLimit(effectName);
+        // 使用PotionEffectLimitManager检查药水效果等级
+        // 如果效果等级超过正常最大等级+2，则视为违规
+        if (potionEffectLimitManager != null && potionEffectLimitManager.isOverLimit(effectName, amplifier)) {
+            int maxLevel = potionEffectLimitManager.getMaxLevel(effectName);
+            int limitLevel = potionEffectLimitManager.getLimitLevel(effectName);
+            boolean isPotionObtainable = potionEffectLimitManager.isPotionObtainable(effectName);
+            
+            if (isPotionObtainable) {
+                violations.add(String.format("药水效果 %s 等级 %d 超过限制（正常最大等级 %d + 容许值 2 = %d）",
+                    effectName, amplifier + 1, maxLevel + 1, limitLevel + 1));
+            } else {
+                // 非药水可获得的效果，最大10级
+                violations.add(String.format("非药水效果 %s 等级 %d 超过限制 %d",
+                    effectName, amplifier + 1, limitLevel + 1));
+            }
         } else {
-            amplifierLimit = configManager.getMaxPotionAmplifier();
-        }
-        
-        if (amplifier > amplifierLimit) {
-            violations.add(String.format("药水效果 %s 等级 %d 超过限制 %d",
-                effectName, amplifier + 1, amplifierLimit + 1));
+            // 备用检查：使用配置的限制
+            int amplifierLimit;
+            if (configManager.hasPotionEffectLimit(effectName)) {
+                amplifierLimit = configManager.getPotionEffectLimit(effectName);
+            } else {
+                amplifierLimit = configManager.getMaxPotionAmplifier();
+            }
+            
+            if (amplifier > amplifierLimit) {
+                violations.add(String.format("药水效果 %s 等级 %d 超过配置限制 %d",
+                    effectName, amplifier + 1, amplifierLimit + 1));
+            }
         }
         
         // 检查药水效果持续时间
