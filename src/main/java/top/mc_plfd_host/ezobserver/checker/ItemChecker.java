@@ -8,9 +8,12 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.type.Piston;
 import org.bukkit.inventory.meta.BlockStateMeta;
+import org.bukkit.inventory.meta.BookMeta;
 import org.bukkit.inventory.meta.BundleMeta;
+import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.MapMeta;
 import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.inventory.meta.SpawnEggMeta;
 import org.bukkit.potion.PotionEffect;
@@ -85,6 +88,9 @@ public class ItemChecker {
         
         // 检查收纳袋（Bundle）内容（1.21.4+）
         violations.addAll(checkBundle(item));
+        
+        // 检查空数据物品（空成书、空附魔书、空地图）
+        violations.addAll(checkEmptyDataItem(item));
         
         return violations;
     }
@@ -753,5 +759,136 @@ public class ItemChecker {
         }
         
         return false;
+    }
+
+    /**
+     * 检查空数据物品
+     * 这些物品缺少必要的数据，是作弊物品
+     *
+     * 典型示例：
+     * - 空成书 (WRITTEN_BOOK) - 没有页面内容
+     * - 空附魔书 (ENCHANTED_BOOK) - stored_enchantments: {} 为空
+     * - 空地图 (FILLED_MAP) - 没有 map_id
+     */
+    private List<String> checkEmptyDataItem(ItemStack item) {
+        List<String> violations = new ArrayList<>();
+        
+        Material type = item.getType();
+        
+        if (!item.hasItemMeta()) {
+            // 某些物品必须有 ItemMeta，没有的话也是异常
+            if (type == Material.WRITTEN_BOOK || type == Material.ENCHANTED_BOOK ||
+                type == Material.FILLED_MAP) {
+                violations.add(String.format("空数据物品: %s 缺少必要的元数据", type.name()));
+            }
+            return violations;
+        }
+        
+        ItemMeta meta = item.getItemMeta();
+        
+        // 检查空成书
+        if (type == Material.WRITTEN_BOOK) {
+            if (meta instanceof BookMeta) {
+                BookMeta bookMeta = (BookMeta) meta;
+                
+                // 成书应该有页面内容
+                if (bookMeta.getPageCount() == 0) {
+                    violations.add("空成书: 没有页面内容 (疑似作弊物品)");
+                }
+                
+                // 成书应该有作者和标题
+                if (!bookMeta.hasAuthor() || !bookMeta.hasTitle()) {
+                    violations.add("空成书: 缺少作者或标题 (疑似作弊物品)");
+                }
+            }
+        }
+        
+        // 检查空附魔书
+        if (type == Material.ENCHANTED_BOOK) {
+            if (meta instanceof EnchantmentStorageMeta) {
+                EnchantmentStorageMeta enchantMeta = (EnchantmentStorageMeta) meta;
+                
+                // 附魔书应该有存储的附魔
+                if (!enchantMeta.hasStoredEnchants() || enchantMeta.getStoredEnchants().isEmpty()) {
+                    violations.add("空附魔书: 没有存储的附魔 (疑似作弊物品)");
+                }
+            }
+        }
+        
+        // 检查空地图
+        if (type == Material.FILLED_MAP) {
+            if (meta instanceof MapMeta) {
+                MapMeta mapMeta = (MapMeta) meta;
+                
+                // 已填充的地图应该有地图视图
+                // 注意：在某些版本中，可能需要使用不同的方法来检查
+                try {
+                    // 尝试检查是否有地图视图
+                    if (!mapMeta.hasMapView()) {
+                        violations.add("空地图: 没有地图数据 (疑似作弊物品)");
+                    }
+                } catch (Exception e) {
+                    // 如果方法不存在，使用备用检查
+                    // 检查是否有地图 ID（通过反射）
+                    try {
+                        java.lang.reflect.Method hasMapIdMethod = mapMeta.getClass().getMethod("hasMapId");
+                        Boolean hasMapId = (Boolean) hasMapIdMethod.invoke(mapMeta);
+                        if (!hasMapId) {
+                            violations.add("空地图: 没有地图ID (疑似作弊物品)");
+                        }
+                    } catch (Exception ex) {
+                        // 忽略
+                    }
+                }
+            }
+        }
+        
+        // 检查知识之书
+        if (type == Material.KNOWLEDGE_BOOK) {
+            // 知识之书应该有配方数据
+            // 在 Bukkit API 中，KnowledgeBookMeta 用于检查
+            try {
+                Class<?> knowledgeBookMetaClass = Class.forName("org.bukkit.inventory.meta.KnowledgeBookMeta");
+                if (knowledgeBookMetaClass.isInstance(meta)) {
+                    java.lang.reflect.Method hasRecipesMethod = meta.getClass().getMethod("hasRecipes");
+                    Boolean hasRecipes = (Boolean) hasRecipesMethod.invoke(meta);
+                    if (!hasRecipes) {
+                        violations.add("空知识之书: 没有配方数据 (疑似作弊物品)");
+                    }
+                }
+            } catch (Exception e) {
+                // 忽略
+            }
+        }
+        
+        // 检查是否有异常的 enchantment_glint_override（发光效果）
+        // 正常物品不应该有这个属性，除非是附魔物品
+        // 注意：hasEnchantGlint() 是 1.21+ 的新方法，需要使用反射兼容旧版本
+        try {
+            java.lang.reflect.Method hasEnchantGlintMethod = meta.getClass().getMethod("hasEnchantGlint");
+            Boolean hasEnchantGlint = (Boolean) hasEnchantGlintMethod.invoke(meta);
+            
+            if (hasEnchantGlint != null && hasEnchantGlint) {
+                // 如果物品有发光效果但没有附魔，可能是作弊物品
+                if (item.getEnchantments().isEmpty()) {
+                    // 对于附魔书，检查存储的附魔
+                    if (type == Material.ENCHANTED_BOOK) {
+                        if (meta instanceof EnchantmentStorageMeta) {
+                            EnchantmentStorageMeta enchantMeta = (EnchantmentStorageMeta) meta;
+                            if (!enchantMeta.hasStoredEnchants() || enchantMeta.getStoredEnchants().isEmpty()) {
+                                violations.add("异常发光效果: 物品有发光但没有附魔 (疑似作弊物品)");
+                            }
+                        }
+                    } else {
+                        // 其他物品有发光但没有附魔
+                        violations.add("异常发光效果: 物品有发光但没有附魔 (疑似作弊物品)");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // 方法不存在（旧版本），忽略此检查
+        }
+        
+        return violations;
     }
 }

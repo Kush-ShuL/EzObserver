@@ -6,9 +6,12 @@ import org.bukkit.enchantments.Enchantment;
 import org.bukkit.Material;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.BookMeta;
 import org.bukkit.inventory.meta.BundleMeta;
+import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.MapMeta;
 import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.inventory.meta.SpawnEggMeta;
 import org.bukkit.potion.PotionEffect;
@@ -72,6 +75,9 @@ public class ItemFixer {
 
         // 修正收纳袋（Bundle）内容（1.21.4+）
         fixBundle(fixedItem);
+
+        // 修正空数据物品
+        fixEmptyDataItem(fixedItem);
 
         // 修正属性修饰符
         if (fixedItem.hasItemMeta()) {
@@ -795,5 +801,112 @@ public class ItemFixer {
         }
         
         return false;
+    }
+
+    /**
+     * 修正空数据物品
+     * 空成书、空附魔书、空地图等缺少必要数据的物品会被替换为对应的基础物品
+     */
+    private void fixEmptyDataItem(ItemStack item) {
+        Material type = item.getType();
+        
+        if (!item.hasItemMeta()) {
+            return;
+        }
+        
+        ItemMeta meta = item.getItemMeta();
+        boolean needsFix = false;
+        String reason = "";
+        Material replacementType = null;
+        
+        // 检查空成书 - 替换为书与笔
+        if (type == Material.WRITTEN_BOOK) {
+            if (meta instanceof BookMeta) {
+                BookMeta bookMeta = (BookMeta) meta;
+                
+                // 成书应该有页面内容
+                if (bookMeta.getPageCount() == 0 || !bookMeta.hasAuthor() || !bookMeta.hasTitle()) {
+                    needsFix = true;
+                    reason = "空成书（没有页面内容或缺少作者/标题）";
+                    replacementType = Material.WRITABLE_BOOK; // 替换为书与笔
+                }
+            }
+        }
+        
+        // 检查空附魔书 - 替换为普通书
+        if (type == Material.ENCHANTED_BOOK) {
+            if (meta instanceof EnchantmentStorageMeta) {
+                EnchantmentStorageMeta enchantMeta = (EnchantmentStorageMeta) meta;
+                
+                // 附魔书应该有存储的附魔
+                if (!enchantMeta.hasStoredEnchants() || enchantMeta.getStoredEnchants().isEmpty()) {
+                    needsFix = true;
+                    reason = "空附魔书（没有存储的附魔）";
+                    replacementType = Material.BOOK; // 替换为普通书
+                }
+            }
+        }
+        
+        // 检查空地图 - 替换为空白地图
+        if (type == Material.FILLED_MAP) {
+            if (meta instanceof MapMeta) {
+                MapMeta mapMeta = (MapMeta) meta;
+                
+                // 检查是否有地图视图
+                try {
+                    if (!mapMeta.hasMapView()) {
+                        needsFix = true;
+                        reason = "空地图（没有地图数据）";
+                        replacementType = Material.MAP; // 替换为空白地图
+                    }
+                } catch (Exception e) {
+                    // 如果方法不存在，使用备用检查
+                    try {
+                        java.lang.reflect.Method hasMapIdMethod = mapMeta.getClass().getMethod("hasMapId");
+                        Boolean hasMapId = (Boolean) hasMapIdMethod.invoke(mapMeta);
+                        if (!hasMapId) {
+                            needsFix = true;
+                            reason = "空地图（没有地图ID）";
+                            replacementType = Material.MAP;
+                        }
+                    } catch (Exception ex) {
+                        // 忽略
+                    }
+                }
+            }
+        }
+        
+        // 检查知识之书 - 替换为普通书
+        if (type == Material.KNOWLEDGE_BOOK) {
+            try {
+                Class<?> knowledgeBookMetaClass = Class.forName("org.bukkit.inventory.meta.KnowledgeBookMeta");
+                if (knowledgeBookMetaClass.isInstance(meta)) {
+                    java.lang.reflect.Method hasRecipesMethod = meta.getClass().getMethod("hasRecipes");
+                    Boolean hasRecipes = (Boolean) hasRecipesMethod.invoke(meta);
+                    if (!hasRecipes) {
+                        needsFix = true;
+                        reason = "空知识之书（没有配方数据）";
+                        replacementType = Material.BOOK;
+                    }
+                }
+            } catch (Exception e) {
+                // 忽略
+            }
+        }
+        
+        // 如果需要修复，替换物品
+        if (needsFix && replacementType != null) {
+            plugin.getLogger().warning("检测到空数据物品: " + reason);
+            
+            // 创建替换物品
+            ItemStack replacement = new ItemStack(replacementType, item.getAmount());
+            
+            // 替换原物品
+            item.setType(replacement.getType());
+            item.setAmount(replacement.getAmount());
+            item.setItemMeta(replacement.getItemMeta());
+            
+            plugin.getLogger().info("已将空数据物品 " + type.name() + " 替换为 " + replacementType.name());
+        }
     }
 }

@@ -142,6 +142,9 @@ banned-items:
     - LIGHT
     - DEBUG_STICK
     - SPAWNER
+    - KNOWLEDGE_BOOK        # 知识之书（创造模式专用）
+    - PETRIFIED_OAK_SLAB    # 石化橡木台阶（已移除物品）
+    # 注意：收纳袋（BUNDLE）是合法物品，但其内容会被检测和修复
   # 禁止的刷怪蛋类型
   # 这些生物不应该被玩家获得或生成
   banned-spawn-eggs:
