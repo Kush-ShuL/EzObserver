@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>top.mc_plfd_host</groupId>
-    <artifactId>ezobserver</artifactId>
+    <artifactId>EzObserver</artifactId>
     <version>1.1.0</version>
     <packaging>jar</packaging>
 
