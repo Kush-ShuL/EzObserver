@@ -7,24 +7,29 @@ import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.PotionMeta;
+import org.bukkit.inventory.meta.SpawnEggMeta;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import top.mc_plfd_host.ezobserver.EzObserver;
 import top.mc_plfd_host.ezobserver.config.ConfigManager;
+import top.mc_plfd_host.ezobserver.config.EnchantmentConflictManager;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class ItemChecker {
 
     private final EzObserver plugin;
     private final ConfigManager configManager;
+    private final EnchantmentConflictManager conflictManager;
 
     public ItemChecker(EzObserver plugin) {
         this.plugin = plugin;
         this.configManager = plugin.getConfigManager();
+        this.conflictManager = plugin.getEnchantmentConflictManager();
     }
 
     public List<String> checkItem(ItemStack item) {
@@ -49,11 +54,17 @@ public class ItemChecker {
         // 检查附魔
         violations.addAll(checkEnchantments(item));
         
+        // 检查冲突附魔
+        violations.addAll(checkConflictingEnchantments(item));
+        
         // 检查OP物品
         violations.addAll(checkOpItem(item));
         
         // 检查药水
         violations.addAll(checkPotion(item));
+        
+        // 检查刷怪蛋NBT
+        violations.addAll(checkSpawnEgg(item));
         
         return violations;
     }
@@ -84,6 +95,26 @@ public class ItemChecker {
                 violations.add(String.format("附魔 %s 等级 %d 超过限制 %d",
                     enchantName, level, limit));
             }
+        }
+        
+        return violations;
+    }
+
+    /**
+     * 检查冲突附魔
+     */
+    private List<String> checkConflictingEnchantments(ItemStack item) {
+        List<String> violations = new ArrayList<>();
+        
+        if (conflictManager == null || !conflictManager.isConflictDetectionEnabled()) {
+            return violations;
+        }
+        
+        List<Set<String>> conflictGroups = conflictManager.findConflictingEnchantments(item);
+        
+        for (Set<String> conflictGroup : conflictGroups) {
+            violations.add(String.format("冲突附魔组: %s (这些附魔互相冲突，将被全部移除)",
+                String.join(", ", conflictGroup)));
         }
         
         return violations;
@@ -299,5 +330,99 @@ public class ItemChecker {
         }
         
         return violations;
+    }
+
+    /**
+     * 检查刷怪蛋是否被修改了NBT
+     * 刷怪蛋可能被修改为生成不同的实体（如TNT矿车）
+     */
+    private List<String> checkSpawnEgg(ItemStack item) {
+        List<String> violations = new ArrayList<>();
+        
+        // 检查是否是刷怪蛋
+        if (!isSpawnEgg(item.getType())) {
+            return violations;
+        }
+        
+        if (!item.hasItemMeta()) {
+            return violations;
+        }
+        
+        ItemMeta meta = item.getItemMeta();
+        
+        // 检查是否有自定义NBT数据（通过PersistentDataContainer或其他方式）
+        // 在较新版本的Bukkit中，SpawnEggMeta可以获取生成的实体类型
+        if (meta instanceof SpawnEggMeta) {
+            SpawnEggMeta spawnEggMeta = (SpawnEggMeta) meta;
+            
+            // 获取刷怪蛋应该生成的实体类型（根据物品类型）
+            String expectedEntityType = getExpectedEntityType(item.getType());
+            
+            // 尝试通过反射检查是否有自定义生成数据（兼容不同版本）
+            try {
+                // 尝试调用 getSpawnedType() 方法（某些版本可能有）
+                java.lang.reflect.Method getSpawnedTypeMethod = spawnEggMeta.getClass().getMethod("getSpawnedType");
+                Object actualEntityType = getSpawnedTypeMethod.invoke(spawnEggMeta);
+                
+                if (actualEntityType != null) {
+                    String actualTypeName = actualEntityType.toString();
+                    
+                    // 如果实际生成的实体类型与预期不符，则可能是被修改的
+                    if (expectedEntityType != null && !expectedEntityType.equals(actualTypeName)) {
+                        violations.add(String.format("刷怪蛋NBT被篡改: 物品类型为 %s，但实际会生成 %s",
+                            item.getType().name(), actualTypeName));
+                    }
+                }
+            } catch (Exception e) {
+                // 方法不存在或调用失败，使用备用检测方法
+            }
+        }
+        
+        // 检查是否有额外的NBT数据（如EntityTag）
+        // 这些数据可能被用于生成非预期的实体或携带恶意数据
+        if (hasCustomEntityTag(item)) {
+            violations.add(String.format("刷怪蛋包含自定义EntityTag NBT数据，可能被篡改"));
+        }
+        
+        return violations;
+    }
+    
+    /**
+     * 检查物品是否是刷怪蛋
+     */
+    private boolean isSpawnEgg(Material material) {
+        return material.name().endsWith("_SPAWN_EGG");
+    }
+    
+    /**
+     * 根据刷怪蛋类型获取预期的实体类型
+     */
+    private String getExpectedEntityType(Material spawnEggType) {
+        String name = spawnEggType.name();
+        if (name.endsWith("_SPAWN_EGG")) {
+            // 例如: CHICKEN_SPAWN_EGG -> CHICKEN
+            return name.substring(0, name.length() - "_SPAWN_EGG".length());
+        }
+        return null;
+    }
+    
+    /**
+     * 检查刷怪蛋是否有自定义EntityTag
+     * 这是通过检查ItemMeta的持久数据容器来实现的
+     */
+    private boolean hasCustomEntityTag(ItemStack item) {
+        if (!item.hasItemMeta()) {
+            return false;
+        }
+        
+        ItemMeta meta = item.getItemMeta();
+        
+        // 检查持久数据容器是否有自定义数据
+        // 在Bukkit API中，我们可以通过检查PersistentDataContainer来检测
+        if (meta.getPersistentDataContainer() != null && !meta.getPersistentDataContainer().isEmpty()) {
+            return true;
+        }
+        
+        return false;
     }
 }
