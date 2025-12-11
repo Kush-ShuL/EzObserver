@@ -1,10 +1,10 @@
 name: EzObserver
-version: 1.0.0
+version: ${project.version}
 main: top.mc_plfd_host.ezobserver.EzObserver
 api-version: 1.20
 folia-supported: true
 author: Kush_ShuL
-description: 反违规物品插件 - 监听物品移动并检测违规附魔和属性修饰符
+description: 反违规物品插件 - 监听物品移动并检测违规附魔和属性修饰符 (支持Folia)
 
 commands:
   ezobserver:

@@ -109,6 +109,8 @@ attribute-limits:
 # 根据物品名称或Lore关键词检测
 banned-items:
   enabled: true
+  # 违禁物品处理模式: "delete" = 删除物品, "notify" = 仅通知不删除
+  action-mode: "delete"
   # 禁止的物品名称关键词 (支持颜色代码)
   name-keywords:
     - "§4§l神器"
@@ -127,6 +129,7 @@ banned-items:
     - "一击必杀"
     - "无限生命"
   # 禁止的物品类型 (Material名称)
+  # 包括命令方块、结构方块、屏障等创造模式专用物品
   banned-materials:
     - COMMAND_BLOCK
     - COMMAND_BLOCK_MINECART
@@ -139,6 +142,15 @@ banned-items:
     - LIGHT
     - DEBUG_STICK
     - SPAWNER
+  # 禁止的刷怪蛋类型
+  # 这些生物不应该被玩家获得或生成
+  banned-spawn-eggs:
+    - WITHER_SPAWN_EGG           # 凋零刷怪蛋
+    - ENDER_DRAGON_SPAWN_EGG     # 末影龙刷怪蛋
+    - GIANT_SPAWN_EGG            # 巨人刷怪蛋
+    - ILLUSIONER_SPAWN_EGG       # 幻术师刷怪蛋
+    - ELDER_GUARDIAN_SPAWN_EGG   # 远古守卫者刷怪蛋
+    - WARDEN_SPAWN_EGG           # 监守者刷怪蛋
 
 # 预制OP物品检测规则
 op-items:

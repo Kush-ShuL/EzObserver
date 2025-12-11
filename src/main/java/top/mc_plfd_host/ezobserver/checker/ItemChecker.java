@@ -5,6 +5,11 @@ import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.block.data.BlockData;
+import org.bukkit.block.data.type.Piston;
+import org.bukkit.inventory.meta.BlockStateMeta;
+import org.bukkit.inventory.meta.BundleMeta;
+import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.inventory.meta.SpawnEggMeta;
@@ -57,6 +62,9 @@ public class ItemChecker {
         // 检查附魔
         violations.addAll(checkEnchantments(item));
         
+        // 检查非法附魔（附魔不能应用到不允许的物品上）
+        violations.addAll(checkIllegalEnchantments(item));
+        
         // 检查冲突附魔
         violations.addAll(checkConflictingEnchantments(item));
         
@@ -68,6 +76,15 @@ public class ItemChecker {
         
         // 检查刷怪蛋NBT
         violations.addAll(checkSpawnEgg(item));
+        
+        // 检查烟花火箭
+        violations.addAll(checkFireworkRocket(item));
+        
+        // 检查无头活塞
+        violations.addAll(checkExtendedPiston(item));
+        
+        // 检查收纳袋（Bundle）内容（1.21.4+）
+        violations.addAll(checkBundle(item));
         
         return violations;
     }
@@ -97,6 +114,36 @@ public class ItemChecker {
             if (level > limit) {
                 violations.add(String.format("附魔 %s 等级 %d 超过限制 %d",
                     enchantName, level, limit));
+            }
+        }
+        
+        return violations;
+    }
+
+    /**
+     * 检查非法附魔（附魔不能应用到不允许的物品上）
+     * 使用 Enchantment.canEnchantItem() 来检查附魔是否可以应用到物品上
+     */
+    private List<String> checkIllegalEnchantments(ItemStack item) {
+        List<String> violations = new ArrayList<>();
+        
+        Map<Enchantment, Integer> enchantments = item.getEnchantments();
+        if (enchantments.isEmpty()) {
+            return violations;
+        }
+        
+        // 检查每个附魔是否可以应用到此物品
+        for (Map.Entry<Enchantment, Integer> entry : enchantments.entrySet()) {
+            Enchantment enchant = entry.getKey();
+            String enchantName = enchant.getKey().getKey();
+            
+            // 使用 canEnchantItem 检查附魔是否可以应用到此物品
+            // 注意：这个方法对于已经附魔的物品可能返回 false，所以我们需要创建一个干净的物品来测试
+            ItemStack cleanItem = new ItemStack(item.getType());
+            
+            if (!enchant.canEnchantItem(cleanItem)) {
+                violations.add(String.format("非法附魔: %s 不能应用到 %s 上",
+                    enchantName, item.getType().name()));
             }
         }
         
@@ -159,11 +206,37 @@ public class ItemChecker {
             return violations;
         }
         
+        // 检查禁止的物品类型
         if (configManager.isBannedMaterial(item.getType())) {
             violations.add(String.format("禁止的物品类型: %s", item.getType().name()));
         }
         
+        // 检查禁止的刷怪蛋类型
+        if (configManager.isBannedSpawnEgg(item.getType())) {
+            violations.add(String.format("禁止的刷怪蛋类型: %s", item.getType().name()));
+        }
+        
         return violations;
+    }
+    
+    /**
+     * 检查物品是否是违禁物品（需要直接删除的物品）
+     * 违禁物品包括：禁止的物品类型、禁止的刷怪蛋类型
+     */
+    public boolean isBannedItem(ItemStack item) {
+        if (item == null || !configManager.isBannedItemsEnabled()) {
+            return false;
+        }
+        
+        return configManager.isBannedMaterial(item.getType()) ||
+               configManager.isBannedSpawnEgg(item.getType());
+    }
+    
+    /**
+     * 检查是否应该删除违禁物品
+     */
+    public boolean shouldDeleteBannedItem() {
+        return configManager.isBannedItemsDeleteMode();
     }
 
     private List<String> checkBannedNameAndLore(ItemMeta meta) {
@@ -298,11 +371,20 @@ public class ItemChecker {
         PotionEffectType effectType = effect.getType();
         String effectName = effectType.getName();
         int amplifier = effect.getAmplifier();
-        int duration = effect.getDuration() / 20; // 转换为秒
+        int durationTicks = effect.getDuration();
+        int duration = durationTicks / 20; // 转换为秒
         
         // 检查是否是禁止的药水效果
         if (configManager.isBannedPotionEffect(effectName)) {
             violations.add(String.format("禁止的药水效果: %s", effectName));
+            return violations;
+        }
+        
+        // 检查是否是极端作弊效果（超高等级或超长时间）
+        // amplifier >= 117 或 duration 接近 Integer.MAX_VALUE 被视为极端作弊
+        if (amplifier >= 117 || durationTicks >= 2147483640) {
+            violations.add(String.format("极端作弊药水效果: %s 等级 %d 持续时间 %d ticks (疑似作弊物品)",
+                effectName, amplifier + 1, durationTicks));
             return violations;
         }
         
@@ -355,6 +437,12 @@ public class ItemChecker {
     /**
      * 检查刷怪蛋是否被修改了NBT
      * 刷怪蛋可能被修改为生成不同的实体（如TNT矿车）
+     *
+     * 典型的作弊刷怪蛋示例：
+     * - entity_data.id: "tnt_minecart" (应该是 allay)
+     * - explosion_power: 32 (正常TNT是4)
+     * - fuse: 0 (立即爆炸)
+     * - unbreakable: {} (无法破坏)
      */
     private List<String> checkSpawnEgg(ItemStack item) {
         List<String> violations = new ArrayList<>();
@@ -370,7 +458,12 @@ public class ItemChecker {
         
         ItemMeta meta = item.getItemMeta();
         
-        // 检查是否有自定义NBT数据（通过PersistentDataContainer或其他方式）
+        // 1. 检查是否有无法破坏属性（刷怪蛋不应该有）
+        if (meta.isUnbreakable()) {
+            violations.add(String.format("刷怪蛋 %s 具有无法破坏属性 (疑似作弊物品)", item.getType().name()));
+        }
+        
+        // 2. 检查是否有自定义NBT数据（通过PersistentDataContainer或其他方式）
         // 在较新版本的Bukkit中，SpawnEggMeta可以获取生成的实体类型
         if (meta instanceof SpawnEggMeta) {
             SpawnEggMeta spawnEggMeta = (SpawnEggMeta) meta;
@@ -389,19 +482,42 @@ public class ItemChecker {
                     
                     // 如果实际生成的实体类型与预期不符，则可能是被修改的
                     if (expectedEntityType != null && !expectedEntityType.equals(actualTypeName)) {
-                        violations.add(String.format("刷怪蛋NBT被篡改: 物品类型为 %s，但实际会生成 %s",
+                        violations.add(String.format("刷怪蛋NBT被篡改: 物品类型为 %s，但实际会生成 %s (疑似作弊物品)",
                             item.getType().name(), actualTypeName));
                     }
                 }
             } catch (Exception e) {
                 // 方法不存在或调用失败，使用备用检测方法
             }
+            
+            // 尝试通过 getSpawnedEntity() 方法检查（Paper 1.20.4+）
+            try {
+                java.lang.reflect.Method getSpawnedEntityMethod = spawnEggMeta.getClass().getMethod("getSpawnedEntity");
+                Object spawnedEntity = getSpawnedEntityMethod.invoke(spawnEggMeta);
+                
+                if (spawnedEntity != null) {
+                    // 检查实体快照中的数据
+                    violations.add(String.format("刷怪蛋 %s 包含自定义实体数据 (疑似作弊物品)", item.getType().name()));
+                }
+            } catch (Exception e) {
+                // 方法不存在或调用失败
+            }
         }
         
-        // 检查是否有额外的NBT数据（如EntityTag）
+        // 3. 检查是否有额外的NBT数据（如EntityTag）
         // 这些数据可能被用于生成非预期的实体或携带恶意数据
         if (hasCustomEntityTag(item)) {
-            violations.add(String.format("刷怪蛋包含自定义EntityTag NBT数据，可能被篡改"));
+            violations.add(String.format("刷怪蛋 %s 包含自定义EntityTag NBT数据，可能被篡改", item.getType().name()));
+        }
+        
+        // 4. 检查是否有附魔（刷怪蛋不应该有附魔）
+        if (!item.getEnchantments().isEmpty()) {
+            violations.add(String.format("刷怪蛋 %s 具有附魔 (疑似作弊物品)", item.getType().name()));
+        }
+        
+        // 5. 检查是否有属性修饰符（刷怪蛋不应该有）
+        if (meta.hasAttributeModifiers()) {
+            violations.add(String.format("刷怪蛋 %s 具有属性修饰符 (疑似作弊物品)", item.getType().name()));
         }
         
         return violations;
@@ -441,6 +557,199 @@ public class ItemChecker {
         // 在Bukkit API中，我们可以通过检查PersistentDataContainer来检测
         if (meta.getPersistentDataContainer() != null && !meta.getPersistentDataContainer().isEmpty()) {
             return true;
+        }
+        
+        return false;
+    }
+
+    /**
+     * 检查烟花火箭是否有非法的飞行时间
+     * 正常飞行时间为 1-3，超过 3 的就是非法的
+     */
+    private List<String> checkFireworkRocket(ItemStack item) {
+        List<String> violations = new ArrayList<>();
+        
+        // 检查是否是烟花火箭
+        if (item.getType() != Material.FIREWORK_ROCKET) {
+            return violations;
+        }
+        
+        if (!item.hasItemMeta() || !(item.getItemMeta() instanceof FireworkMeta)) {
+            return violations;
+        }
+        
+        FireworkMeta fireworkMeta = (FireworkMeta) item.getItemMeta();
+        int power = fireworkMeta.getPower();
+        
+        // 正常飞行时间为 1-3（power 0-2 对应飞行时间 1-3）
+        // 超过 3 的就是非法的
+        if (power > 3) {
+            violations.add(String.format("烟花火箭飞行时间 %d 超过限制 3 (疑似作弊物品)", power));
+        }
+        
+        return violations;
+    }
+
+    /**
+     * 检查活塞是否处于伸出状态（无头活塞）
+     * 物品形式的活塞不应该有 extended=true 的状态
+     */
+    private List<String> checkExtendedPiston(ItemStack item) {
+        List<String> violations = new ArrayList<>();
+        
+        // 检查是否是活塞
+        Material type = item.getType();
+        if (type != Material.PISTON && type != Material.STICKY_PISTON) {
+            return violations;
+        }
+        
+        if (!item.hasItemMeta()) {
+            return violations;
+        }
+        
+        ItemMeta meta = item.getItemMeta();
+        
+        // 检查是否有 BlockStateMeta
+        if (meta instanceof BlockStateMeta) {
+            BlockStateMeta blockStateMeta = (BlockStateMeta) meta;
+            
+            // 尝试获取方块数据
+            if (blockStateMeta.hasBlockState()) {
+                try {
+                    BlockData blockData = blockStateMeta.getBlockState().getBlockData();
+                    if (blockData instanceof Piston) {
+                        Piston piston = (Piston) blockData;
+                        if (piston.isExtended()) {
+                            violations.add(String.format("检测到无头活塞: %s 处于伸出状态 (疑似作弊物品)", type.name()));
+                        }
+                    }
+                } catch (Exception e) {
+                    // 忽略异常
+                }
+            }
+        }
+        
+        // 检查是否有无法破坏属性（活塞不应该有）
+        if (meta.isUnbreakable()) {
+            violations.add(String.format("活塞 %s 具有无法破坏属性 (疑似作弊物品)", type.name()));
+        }
+        
+        return violations;
+    }
+
+    /**
+     * 检查收纳袋（Bundle）内容
+     * 收纳袋可能包含违规物品，需要递归检查
+     *
+     * 典型的作弊收纳袋示例：
+     * - 包含违禁物品（如光源方块）
+     * - 包含作弊药水（amplifier: 124, duration: 2147483647）
+     * - 包含篡改的物品展示框（entity_data.Invisible: 1b）
+     * - 包含特殊盔甲架（ShowArms, Small等属性）
+     */
+    private List<String> checkBundle(ItemStack item) {
+        List<String> violations = new ArrayList<>();
+        
+        // 检查是否是收纳袋
+        if (item.getType() != Material.BUNDLE) {
+            return violations;
+        }
+        
+        if (!item.hasItemMeta()) {
+            return violations;
+        }
+        
+        ItemMeta meta = item.getItemMeta();
+        
+        // 检查是否是 BundleMeta（1.21.4+）
+        if (!(meta instanceof BundleMeta)) {
+            return violations;
+        }
+        
+        BundleMeta bundleMeta = (BundleMeta) meta;
+        
+        // 获取收纳袋中的物品
+        List<ItemStack> contents = bundleMeta.getItems();
+        
+        if (contents == null || contents.isEmpty()) {
+            return violations;
+        }
+        
+        int violatingItemCount = 0;
+        List<String> contentViolations = new ArrayList<>();
+        
+        // 递归检查每个物品
+        for (int i = 0; i < contents.size(); i++) {
+            ItemStack contentItem = contents.get(i);
+            if (contentItem == null) continue;
+            
+            // 检查物品是否违规
+            List<String> itemViolations = checkItem(contentItem);
+            
+            if (!itemViolations.isEmpty()) {
+                violatingItemCount++;
+                String itemName = contentItem.getType().name();
+                contentViolations.add(String.format("  [%d] %s: %s", i + 1, itemName,
+                    String.join("; ", itemViolations)));
+            }
+            
+            // 检查是否是违禁物品
+            if (isBannedItem(contentItem)) {
+                violatingItemCount++;
+                contentViolations.add(String.format("  [%d] 违禁物品: %s", i + 1, contentItem.getType().name()));
+            }
+            
+            // 检查是否有自定义实体数据（物品展示框、盔甲架等）
+            if (hasCustomEntityData(contentItem)) {
+                violatingItemCount++;
+                contentViolations.add(String.format("  [%d] 包含自定义实体数据: %s", i + 1, contentItem.getType().name()));
+            }
+        }
+        
+        if (violatingItemCount > 0) {
+            violations.add(String.format("收纳袋包含 %d 个违规物品 (共 %d 个物品):",
+                violatingItemCount, contents.size()));
+            violations.addAll(contentViolations);
+        }
+        
+        return violations;
+    }
+    
+    /**
+     * 检查物品是否有自定义实体数据
+     * 用于检测物品展示框、盔甲架等被篡改的物品
+     */
+    private boolean hasCustomEntityData(ItemStack item) {
+        if (!item.hasItemMeta()) {
+            return false;
+        }
+        
+        ItemMeta meta = item.getItemMeta();
+        Material type = item.getType();
+        
+        // 检查物品展示框和盔甲架
+        if (type == Material.ITEM_FRAME || type == Material.GLOW_ITEM_FRAME ||
+            type == Material.ARMOR_STAND) {
+            
+            // 检查持久数据容器
+            if (meta.getPersistentDataContainer() != null && !meta.getPersistentDataContainer().isEmpty()) {
+                return true;
+            }
+            
+            // 尝试通过反射检查 entity_data
+            try {
+                // 检查是否有自定义显示名称（通常被篡改的物品会有特殊名称）
+                if (meta.hasDisplayName()) {
+                    String name = meta.getDisplayName();
+                    // 检查是否包含可疑关键词
+                    if (name.contains("隐形") || name.contains("Invisible") ||
+                        name.contains("arms") || name.contains("small")) {
+                        return true;
+                    }
+                }
+            } catch (Exception e) {
+                // 忽略异常
+            }
         }
         
         return false;

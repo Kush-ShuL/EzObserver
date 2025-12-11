@@ -10,6 +10,7 @@ import top.mc_plfd_host.ezobserver.config.PotionEffectLimitManager;
 import top.mc_plfd_host.ezobserver.listener.ItemMoveListener;
 import top.mc_plfd_host.ezobserver.listener.PlayerEffectListener;
 import top.mc_plfd_host.ezobserver.scanner.WorldScanner;
+import top.mc_plfd_host.ezobserver.util.FoliaUtil;
 
 public class EzObserver extends JavaPlugin {
 
@@ -57,7 +58,16 @@ public class EzObserver extends JavaPlugin {
             command.setTabCompleter(commandExecutor);
         }
         
+        // 显示服务器类型和 Folia 兼容性信息
+        String serverType = FoliaUtil.getServerType();
+        boolean isFolia = FoliaUtil.isFolia();
+        
         getLogger().info("EzObserver enabled - Author: Kush_ShuL");
+        getLogger().info("Server type: " + serverType + (isFolia ? " (Folia compatible mode)" : ""));
+        
+        if (isFolia) {
+            getLogger().info("Folia detected! Using region-based scheduling for thread safety.");
+        }
     }
 
     @Override

@@ -42,9 +42,11 @@ public class ConfigManager {
     
     // 自定义禁止物品设置
     private boolean bannedItemsEnabled;
+    private String bannedItemsActionMode;
     private List<String> bannedNameKeywords;
     private List<String> bannedLoreKeywords;
     private Set<Material> bannedMaterials;
+    private Set<Material> bannedSpawnEggs;
     
     // OP物品检测设置
     private boolean opItemsEnabled;
@@ -68,6 +70,7 @@ public class ConfigManager {
         this.bannedNameKeywords = new ArrayList<>();
         this.bannedLoreKeywords = new ArrayList<>();
         this.bannedMaterials = new HashSet<>();
+        this.bannedSpawnEggs = new HashSet<>();
         this.bannedPotionEffects = new HashSet<>();
         this.potionEffectLimits = new HashMap<>();
         this.potionDurationLimits = new HashMap<>();
@@ -114,6 +117,7 @@ public class ConfigManager {
         
         // 加载自定义禁止物品设置
         bannedItemsEnabled = config.getBoolean("banned-items.enabled", true);
+        bannedItemsActionMode = config.getString("banned-items.action-mode", "delete");
         bannedNameKeywords = config.getStringList("banned-items.name-keywords");
         bannedLoreKeywords = config.getStringList("banned-items.lore-keywords");
         
@@ -124,6 +128,17 @@ public class ConfigManager {
                 bannedMaterials.add(material);
             } catch (IllegalArgumentException e) {
                 plugin.getLogger().warning("无效的物品类型: " + materialName);
+            }
+        }
+        
+        // 加载禁止的刷怪蛋类型
+        bannedSpawnEggs.clear();
+        for (String materialName : config.getStringList("banned-items.banned-spawn-eggs")) {
+            try {
+                Material material = Material.valueOf(materialName.toUpperCase());
+                bannedSpawnEggs.add(material);
+            } catch (IllegalArgumentException e) {
+                plugin.getLogger().warning("无效的刷怪蛋类型: " + materialName);
             }
         }
         
@@ -290,6 +305,26 @@ public class ConfigManager {
 
     public boolean isBannedMaterial(Material material) {
         return bannedMaterials.contains(material);
+    }
+
+    public String getBannedItemsActionMode() {
+        return bannedItemsActionMode;
+    }
+
+    public boolean isBannedItemsDeleteMode() {
+        return "delete".equalsIgnoreCase(bannedItemsActionMode);
+    }
+
+    public boolean isBannedItemsNotifyMode() {
+        return "notify".equalsIgnoreCase(bannedItemsActionMode);
+    }
+
+    public Set<Material> getBannedSpawnEggs() {
+        return bannedSpawnEggs;
+    }
+
+    public boolean isBannedSpawnEgg(Material material) {
+        return bannedSpawnEggs.contains(material);
     }
 
     // OP物品检测相关方法

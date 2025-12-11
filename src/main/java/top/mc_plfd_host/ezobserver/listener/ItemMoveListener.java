@@ -91,11 +91,29 @@ public class ItemMoveListener implements Listener {
             return true;
         }
         
+        // 禁止的刷怪蛋类型
+        if (configManager.isBannedSpawnEgg(item.getType())) {
+            return true;
+        }
+        
         // 禁止的名称或Lore
         if (hasBannedNameOrLore(item)) {
             return true;
         }
         
+        return false;
+    }
+    
+    /**
+     * 检查是否应该删除违禁物品
+     * 根据配置的 action-mode 决定
+     */
+    private boolean shouldDeleteBannedItem(ItemStack item) {
+        // 如果是违禁物品
+        if (itemChecker.isBannedItem(item)) {
+            // 检查配置的处理模式
+            return configManager.isBannedItemsDeleteMode();
+        }
         return false;
     }
 

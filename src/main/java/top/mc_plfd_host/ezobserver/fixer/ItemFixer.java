@@ -6,6 +6,8 @@ import org.bukkit.enchantments.Enchantment;
 import org.bukkit.Material;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.BundleMeta;
+import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.inventory.meta.SpawnEggMeta;
@@ -44,6 +46,9 @@ public class ItemFixer {
 
         ItemStack fixedItem = item.clone();
 
+        // 修正非法附魔（附魔不能应用到不允许的物品上）
+        fixIllegalEnchantments(fixedItem);
+
         // 修正冲突附魔（如果两个附魔冲突，则两个都移除）
         fixConflictingEnchantments(fixedItem);
 
@@ -58,6 +63,15 @@ public class ItemFixer {
 
         // 修正药水效果
         fixPotionEffects(fixedItem);
+
+        // 修正烟花火箭飞行时间
+        fixFireworkRocket(fixedItem);
+
+        // 修正无头活塞
+        fixExtendedPiston(fixedItem);
+
+        // 修正收纳袋（Bundle）内容（1.21.4+）
+        fixBundle(fixedItem);
 
         // 修正属性修饰符
         if (fixedItem.hasItemMeta()) {
@@ -132,6 +146,33 @@ public class ItemFixer {
                     // 移除超限附魔
                     plugin.getLogger().info("已移除超限附魔: " + enchantName + " (等级 " + level + " > 限制 " + limit + ")");
                 }
+            }
+        }
+    }
+
+    /**
+     * 修正非法附魔
+     * 移除不能应用到此物品上的附魔
+     */
+    private void fixIllegalEnchantments(ItemStack item) {
+        Map<Enchantment, Integer> enchantments = new HashMap<>(item.getEnchantments());
+        
+        if (enchantments.isEmpty()) {
+            return;
+        }
+        
+        // 创建一个干净的物品来测试附魔是否可以应用
+        ItemStack cleanItem = new ItemStack(item.getType());
+        
+        for (Map.Entry<Enchantment, Integer> entry : enchantments.entrySet()) {
+            Enchantment enchant = entry.getKey();
+            String enchantName = enchant.getKey().getKey();
+            
+            // 检查附魔是否可以应用到此物品
+            if (!enchant.canEnchantItem(cleanItem)) {
+                item.removeEnchantment(enchant);
+                plugin.getLogger().info(String.format("已移除非法附魔: %s 不能应用到 %s 上",
+                    enchantName, item.getType().name()));
             }
         }
     }
@@ -308,6 +349,12 @@ public class ItemFixer {
     /**
      * 修正刷怪蛋的NBT数据
      * 移除可能被篡改的EntityTag等数据，防止生成非预期的实体
+     *
+     * 典型的作弊刷怪蛋示例：
+     * - entity_data.id: "tnt_minecart" (应该是 allay)
+     * - explosion_power: 32 (正常TNT是4)
+     * - fuse: 0 (立即爆炸)
+     * - unbreakable: {} (无法破坏)
      */
     private void fixSpawnEggNbt(ItemStack item) {
         // 检查是否是刷怪蛋
@@ -321,8 +368,27 @@ public class ItemFixer {
         
         ItemMeta meta = item.getItemMeta();
         boolean needsFix = false;
+        List<String> reasons = new ArrayList<>();
         
-        // 检查并清理SpawnEggMeta中的自定义数据
+        // 1. 检查是否有无法破坏属性
+        if (meta.isUnbreakable()) {
+            needsFix = true;
+            reasons.add("无法破坏属性");
+        }
+        
+        // 2. 检查是否有附魔（刷怪蛋不应该有附魔）
+        if (!item.getEnchantments().isEmpty()) {
+            needsFix = true;
+            reasons.add("非法附魔");
+        }
+        
+        // 3. 检查是否有属性修饰符
+        if (meta.hasAttributeModifiers()) {
+            needsFix = true;
+            reasons.add("属性修饰符");
+        }
+        
+        // 4. 检查并清理SpawnEggMeta中的自定义数据
         if (meta instanceof SpawnEggMeta) {
             SpawnEggMeta spawnEggMeta = (SpawnEggMeta) meta;
             
@@ -341,26 +407,43 @@ public class ItemFixer {
                     // 如果实际生成的实体类型与预期不符，需要清理
                     if (expectedEntityType != null && !expectedEntityType.equals(actualTypeName)) {
                         needsFix = true;
-                        plugin.getLogger().info("检测到刷怪蛋NBT被篡改: " + item.getType().name() + " -> " + actualTypeName);
+                        reasons.add("实体类型被篡改为 " + actualTypeName);
                     }
+                }
+            } catch (Exception e) {
+                // 方法不存在或调用失败
+            }
+            
+            // 尝试通过 getSpawnedEntity() 方法检查（Paper 1.20.4+）
+            try {
+                java.lang.reflect.Method getSpawnedEntityMethod = spawnEggMeta.getClass().getMethod("getSpawnedEntity");
+                Object spawnedEntity = getSpawnedEntityMethod.invoke(spawnEggMeta);
+                
+                if (spawnedEntity != null) {
+                    needsFix = true;
+                    reasons.add("自定义实体数据");
                 }
             } catch (Exception e) {
                 // 方法不存在或调用失败
             }
         }
         
-        // 检查持久数据容器是否有自定义数据
+        // 5. 检查持久数据容器是否有自定义数据
         if (meta.getPersistentDataContainer() != null && !meta.getPersistentDataContainer().isEmpty()) {
             needsFix = true;
-            plugin.getLogger().info("检测到刷怪蛋包含自定义NBT数据: " + item.getType().name());
+            reasons.add("自定义NBT数据");
         }
         
         // 如果需要修复，创建一个新的干净的刷怪蛋
         if (needsFix) {
+            plugin.getLogger().warning("检测到作弊刷怪蛋 " + item.getType().name() + ": " + String.join(", ", reasons));
+            
             // 清理方法：创建一个新的相同类型的刷怪蛋，只保留基本属性
             ItemStack cleanEgg = new ItemStack(item.getType(), item.getAmount());
             
-            // 保留显示名称和Lore（如果有的话），但移除其他NBT
+            // 注意：不保留显示名称和Lore，因为作弊物品可能有误导性的名称
+            // 如果需要保留，可以取消下面的注释
+            /*
             ItemMeta cleanMeta = cleanEgg.getItemMeta();
             if (cleanMeta != null) {
                 if (meta.hasDisplayName()) {
@@ -371,13 +454,14 @@ public class ItemFixer {
                 }
                 cleanEgg.setItemMeta(cleanMeta);
             }
+            */
             
             // 将原物品替换为干净的版本
             item.setType(cleanEgg.getType());
             item.setAmount(cleanEgg.getAmount());
             item.setItemMeta(cleanEgg.getItemMeta());
             
-            plugin.getLogger().info("已清理刷怪蛋NBT: " + item.getType().name());
+            plugin.getLogger().info("已清理作弊刷怪蛋: " + item.getType().name());
         }
     }
     
@@ -403,6 +487,7 @@ public class ItemFixer {
     /**
      * 修正药水效果
      * 移除超过正常最大等级+2的药水效果
+     * 对于超高等级（如126级）的效果，直接移除所有自定义效果
      */
     private void fixPotionEffects(ItemStack item) {
         // 检查是否是药水类物品
@@ -418,18 +503,28 @@ public class ItemFixer {
         
         PotionMeta potionMeta = (PotionMeta) item.getItemMeta();
         boolean metaChanged = false;
+        boolean hasExtremeEffect = false;
         
         // 检查并移除超限的自定义药水效果
         if (potionMeta.hasCustomEffects()) {
-            List<PotionEffect> effectsToRemove = new ArrayList<>();
+            List<PotionEffectType> effectTypesToRemove = new ArrayList<>();
             
             for (PotionEffect effect : potionMeta.getCustomEffects()) {
                 String effectName = effect.getType().getName();
                 int amplifier = effect.getAmplifier();
+                int duration = effect.getDuration();
                 
-                // 检查是否超过限制
-                if (potionEffectLimitManager != null && potionEffectLimitManager.isOverLimit(effectName, amplifier)) {
-                    effectsToRemove.add(effect);
+                // 检查是否是极端效果（超高等级或超长时间）
+                // amplifier >= 117 (约等于 126-9) 被视为极端作弊
+                if (amplifier >= 117 || duration >= 2147483640) {
+                    hasExtremeEffect = true;
+                    effectTypesToRemove.add(effect.getType());
+                    plugin.getLogger().warning(String.format("检测到极端药水效果 %s 等级 %d 持续时间 %d，将被移除",
+                        effectName, amplifier + 1, duration));
+                }
+                // 检查是否超过正常限制
+                else if (potionEffectLimitManager != null && potionEffectLimitManager.isOverLimit(effectName, amplifier)) {
+                    effectTypesToRemove.add(effect.getType());
                     int limitLevel = potionEffectLimitManager.getLimitLevel(effectName);
                     plugin.getLogger().info(String.format("药水效果 %s 等级 %d 超过限制 %d，将被移除",
                         effectName, amplifier + 1, limitLevel + 1));
@@ -437,10 +532,17 @@ public class ItemFixer {
             }
             
             // 移除超限的效果
-            for (PotionEffect effect : effectsToRemove) {
-                potionMeta.removeCustomEffect(effect.getType());
+            for (PotionEffectType effectType : effectTypesToRemove) {
+                potionMeta.removeCustomEffect(effectType);
                 metaChanged = true;
             }
+        }
+        
+        // 如果检测到极端效果，清除所有自定义效果并重置药水
+        if (hasExtremeEffect) {
+            potionMeta.clearCustomEffects();
+            metaChanged = true;
+            plugin.getLogger().warning("检测到作弊药水，已清除所有自定义效果: " + item.getType().name());
         }
         
         // 如果有修改，更新物品元数据
@@ -448,5 +550,250 @@ public class ItemFixer {
             item.setItemMeta(potionMeta);
             plugin.getLogger().info("已修正药水效果: " + item.getType().name());
         }
+    }
+
+    /**
+     * 修正烟花火箭的飞行时间
+     * 将超过 3 的飞行时间重置为 3
+     */
+    private void fixFireworkRocket(ItemStack item) {
+        // 检查是否是烟花火箭
+        if (item.getType() != Material.FIREWORK_ROCKET) {
+            return;
+        }
+        
+        if (!item.hasItemMeta() || !(item.getItemMeta() instanceof FireworkMeta)) {
+            return;
+        }
+        
+        FireworkMeta fireworkMeta = (FireworkMeta) item.getItemMeta();
+        int power = fireworkMeta.getPower();
+        
+        // 正常飞行时间为 1-3（power 0-2 对应飞行时间 1-3）
+        // 超过 3 的需要修正
+        if (power > 3) {
+            fireworkMeta.setPower(3); // 重置为最大合法值
+            item.setItemMeta(fireworkMeta);
+            plugin.getLogger().info(String.format("已将烟花火箭飞行时间从 %d 修正为 3", power));
+        }
+    }
+
+    /**
+     * 修正无头活塞
+     * 将处于伸出状态的活塞替换为正常活塞
+     */
+    private void fixExtendedPiston(ItemStack item) {
+        // 检查是否是活塞
+        Material type = item.getType();
+        if (type != Material.PISTON && type != Material.STICKY_PISTON) {
+            return;
+        }
+        
+        if (!item.hasItemMeta()) {
+            return;
+        }
+        
+        ItemMeta meta = item.getItemMeta();
+        boolean needsFix = false;
+        
+        // 检查是否有无法破坏属性
+        if (meta.isUnbreakable()) {
+            meta.setUnbreakable(false);
+            needsFix = true;
+            plugin.getLogger().info("已移除活塞的无法破坏属性: " + type.name());
+        }
+        
+        // 创建一个新的干净的活塞，移除所有可能的方块状态数据
+        // 因为物品形式的活塞不应该有 extended=true 的状态
+        ItemStack cleanPiston = new ItemStack(type, item.getAmount());
+        ItemMeta cleanMeta = cleanPiston.getItemMeta();
+        
+        if (cleanMeta != null) {
+            // 保留显示名称和Lore
+            if (meta.hasDisplayName()) {
+                cleanMeta.setDisplayName(meta.getDisplayName());
+            }
+            if (meta.hasLore()) {
+                cleanMeta.setLore(meta.getLore());
+            }
+            cleanPiston.setItemMeta(cleanMeta);
+        }
+        
+        // 替换原物品
+        item.setType(cleanPiston.getType());
+        item.setAmount(cleanPiston.getAmount());
+        item.setItemMeta(cleanPiston.getItemMeta());
+        
+        if (needsFix) {
+            plugin.getLogger().info("已清理无头活塞: " + type.name());
+        }
+    }
+
+    /**
+     * 修正收纳袋（Bundle）内容
+     * 递归修复收纳袋中的所有物品，移除违规物品
+     *
+     * 典型的作弊收纳袋示例：
+     * - 包含违禁物品（如光源方块）
+     * - 包含作弊药水（amplifier: 124, duration: 2147483647）
+     * - 包含篡改的物品展示框（entity_data.Invisible: 1b）
+     * - 包含特殊盔甲架（ShowArms, Small等属性）
+     */
+    private void fixBundle(ItemStack item) {
+        // 检查是否是收纳袋
+        if (item.getType() != Material.BUNDLE) {
+            return;
+        }
+        
+        if (!item.hasItemMeta()) {
+            return;
+        }
+        
+        ItemMeta meta = item.getItemMeta();
+        
+        // 检查是否是 BundleMeta（1.21.4+）
+        if (!(meta instanceof BundleMeta)) {
+            return;
+        }
+        
+        BundleMeta bundleMeta = (BundleMeta) meta;
+        
+        // 获取收纳袋中的物品
+        List<ItemStack> contents = bundleMeta.getItems();
+        
+        if (contents == null || contents.isEmpty()) {
+            return;
+        }
+        
+        List<ItemStack> cleanedContents = new ArrayList<>();
+        int removedCount = 0;
+        int fixedCount = 0;
+        
+        // 递归检查和修复每个物品
+        for (ItemStack contentItem : contents) {
+            if (contentItem == null) continue;
+            
+            // 检查是否是违禁物品
+            if (isBannedItem(contentItem)) {
+                removedCount++;
+                plugin.getLogger().warning("从收纳袋中移除违禁物品: " + contentItem.getType().name());
+                continue; // 跳过违禁物品
+            }
+            
+            // 检查是否有自定义实体数据（物品展示框、盔甲架等）
+            if (hasCustomEntityData(contentItem)) {
+                removedCount++;
+                plugin.getLogger().warning("从收纳袋中移除包含自定义实体数据的物品: " + contentItem.getType().name());
+                continue; // 跳过包含自定义实体数据的物品
+            }
+            
+            // 递归修复物品
+            ItemStack fixedContentItem = fixItem(contentItem);
+            
+            // 检查修复后的物品是否仍然违规
+            // 如果是，则移除
+            if (isStillViolating(fixedContentItem)) {
+                removedCount++;
+                plugin.getLogger().warning("从收纳袋中移除无法修复的违规物品: " + contentItem.getType().name());
+                continue;
+            }
+            
+            // 如果物品被修改了，计数
+            if (!contentItem.equals(fixedContentItem)) {
+                fixedCount++;
+            }
+            
+            cleanedContents.add(fixedContentItem);
+        }
+        
+        // 如果有物品被移除或修复，更新收纳袋内容
+        if (removedCount > 0 || fixedCount > 0) {
+            bundleMeta.setItems(cleanedContents);
+            item.setItemMeta(bundleMeta);
+            
+            plugin.getLogger().info(String.format("已修正收纳袋: 移除 %d 个违规物品，修复 %d 个物品，保留 %d 个物品",
+                removedCount, fixedCount, cleanedContents.size()));
+        }
+    }
+    
+    /**
+     * 检查物品是否是违禁物品
+     */
+    private boolean isBannedItem(ItemStack item) {
+        if (item == null) {
+            return false;
+        }
+        
+        Material type = item.getType();
+        
+        // 检查禁止的物品类型
+        if (configManager.isBannedMaterial(type)) {
+            return true;
+        }
+        
+        // 检查禁止的刷怪蛋类型
+        if (configManager.isBannedSpawnEgg(type)) {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * 检查物品是否有自定义实体数据
+     * 用于检测物品展示框、盔甲架等被篡改的物品
+     */
+    private boolean hasCustomEntityData(ItemStack item) {
+        if (!item.hasItemMeta()) {
+            return false;
+        }
+        
+        ItemMeta meta = item.getItemMeta();
+        Material type = item.getType();
+        
+        // 检查物品展示框和盔甲架
+        if (type == Material.ITEM_FRAME || type == Material.GLOW_ITEM_FRAME ||
+            type == Material.ARMOR_STAND) {
+            
+            // 检查持久数据容器
+            if (meta.getPersistentDataContainer() != null && !meta.getPersistentDataContainer().isEmpty()) {
+                return true;
+            }
+            
+            // 检查是否有自定义显示名称（通常被篡改的物品会有特殊名称）
+            if (meta.hasDisplayName()) {
+                String name = meta.getDisplayName();
+                // 检查是否包含可疑关键词
+                if (name.contains("隐形") || name.contains("Invisible") ||
+                    name.contains("arms") || name.contains("small") ||
+                    name.contains("Arms") || name.contains("Small")) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * 检查修复后的物品是否仍然违规
+     * 用于判断物品是否可以保留在收纳袋中
+     */
+    private boolean isStillViolating(ItemStack item) {
+        if (item == null) {
+            return false;
+        }
+        
+        // 检查是否是违禁物品
+        if (isBannedItem(item)) {
+            return true;
+        }
+        
+        // 检查是否有自定义实体数据
+        if (hasCustomEntityData(item)) {
+            return true;
+        }
+        
+        return false;
     }
 }
