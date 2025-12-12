@@ -49,6 +49,9 @@ public class ItemFixer {
 
         ItemStack fixedItem = item.clone();
 
+        // 修正不可破坏属性（通用）
+        fixUnbreakable(fixedItem);
+
         // 修正非法附魔（附魔不能应用到不允许的物品上）
         fixIllegalEnchantments(fixedItem);
 
@@ -76,8 +79,8 @@ public class ItemFixer {
         // 修正收纳袋（Bundle）内容（1.21.4+）
         fixBundle(fixedItem);
 
-        // 修正空数据物品
-        fixEmptyDataItem(fixedItem);
+        // 修正空数据物品（可能返回新物品）
+        fixedItem = fixEmptyDataItem(fixedItem);
 
         // 修正属性修饰符
         if (fixedItem.hasItemMeta()) {
@@ -153,6 +156,32 @@ public class ItemFixer {
                     plugin.getLogger().info("已移除超限附魔: " + enchantName + " (等级 " + level + " > 限制 " + limit + ")");
                 }
             }
+        }
+    }
+
+    /**
+     * 修正不可破坏属性
+     * 移除物品的不可破坏属性
+     */
+    private void fixUnbreakable(ItemStack item) {
+        // 检查配置是否启用不可破坏属性移除
+        if (!configManager.isRemoveUnbreakable()) {
+            return;
+        }
+        
+        if (!item.hasItemMeta()) {
+            return;
+        }
+        
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return;
+        }
+        
+        if (meta.isUnbreakable()) {
+            meta.setUnbreakable(false);
+            item.setItemMeta(meta);
+            plugin.getLogger().info("已移除不可破坏属性: " + item.getType().name());
         }
     }
 
@@ -806,13 +835,12 @@ public class ItemFixer {
     /**
      * 修正空数据物品
      * 空成书、空附魔书、空地图等缺少必要数据的物品会被替换为对应的基础物品
+     *
+     * @param item 要修正的物品
+     * @return 修正后的物品（可能是新物品）
      */
-    private void fixEmptyDataItem(ItemStack item) {
+    private ItemStack fixEmptyDataItem(ItemStack item) {
         Material type = item.getType();
-        
-        if (!item.hasItemMeta()) {
-            return;
-        }
         
         ItemMeta meta = item.getItemMeta();
         boolean needsFix = false;
@@ -830,6 +858,11 @@ public class ItemFixer {
                     reason = "空成书（没有页面内容或缺少作者/标题）";
                     replacementType = Material.WRITABLE_BOOK; // 替换为书与笔
                 }
+            } else {
+                // 如果不是BookMeta，也视为空成书
+                needsFix = true;
+                reason = "空成书（元数据类型不正确）";
+                replacementType = Material.WRITABLE_BOOK;
             }
         }
         
@@ -844,6 +877,11 @@ public class ItemFixer {
                     reason = "空附魔书（没有存储的附魔）";
                     replacementType = Material.BOOK; // 替换为普通书
                 }
+            } else {
+                // 如果不是EnchantmentStorageMeta，也视为空附魔书
+                needsFix = true;
+                reason = "空附魔书（元数据类型不正确）";
+                replacementType = Material.BOOK;
             }
         }
         
@@ -873,6 +911,11 @@ public class ItemFixer {
                         // 忽略
                     }
                 }
+            } else {
+                // 如果不是MapMeta，也视为空地图
+                needsFix = true;
+                reason = "空地图（元数据类型不正确）";
+                replacementType = Material.MAP;
             }
         }
         
@@ -894,19 +937,18 @@ public class ItemFixer {
             }
         }
         
-        // 如果需要修复，替换物品
+        // 如果需要修复，创建新物品替换
         if (needsFix && replacementType != null) {
             plugin.getLogger().warning("检测到空数据物品: " + reason);
             
-            // 创建替换物品
+            // 创建新的替换物品
             ItemStack replacement = new ItemStack(replacementType, item.getAmount());
             
-            // 替换原物品
-            item.setType(replacement.getType());
-            item.setAmount(replacement.getAmount());
-            item.setItemMeta(replacement.getItemMeta());
-            
             plugin.getLogger().info("已将空数据物品 " + type.name() + " 替换为 " + replacementType.name());
+            
+            return replacement;
         }
+        
+        return item;
     }
 }

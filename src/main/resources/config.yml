@@ -42,6 +42,8 @@ fix-settings:
   remove-over-limit-attributes: true
   # 是否将超限属性修饰符降级到限制值
   downgrade-attributes: false
+  # 是否移除不可破坏属性
+  remove-unbreakable: true
 
 # 默认最大附魔等级限制 (用于已配置的附魔)
 max-enchantment-level: 10

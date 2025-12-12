@@ -60,6 +60,9 @@ public class ItemChecker {
             
             // 检查属性修饰符
             violations.addAll(checkAttributeModifiers(meta));
+            
+            // 检查不可破坏属性
+            violations.addAll(checkUnbreakable(meta, item.getType()));
         }
         
         // 检查附魔
@@ -171,6 +174,25 @@ public class ItemChecker {
         for (Set<String> conflictGroup : conflictGroups) {
             violations.add(String.format("冲突附魔组: %s (这些附魔互相冲突，将被全部移除)",
                 String.join(", ", conflictGroup)));
+        }
+        
+        return violations;
+    }
+
+    /**
+     * 检查不可破坏属性
+     * 普通物品不应该有不可破坏属性（除非是特定的物品）
+     */
+    private List<String> checkUnbreakable(ItemMeta meta, Material type) {
+        List<String> violations = new ArrayList<>();
+        
+        // 检查配置是否启用不可破坏属性检测
+        if (!configManager.isRemoveUnbreakable()) {
+            return violations;
+        }
+        
+        if (meta.isUnbreakable()) {
+            violations.add(String.format("物品 %s 具有不可破坏属性 (疑似作弊物品)", type.name()));
         }
         
         return violations;

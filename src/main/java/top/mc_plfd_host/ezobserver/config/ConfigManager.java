@@ -39,6 +39,7 @@ public class ConfigManager {
     private boolean downgradeEnchantments;
     private boolean removeOverLimitAttributes;
     private boolean downgradeAttributes;
+    private boolean removeUnbreakable;
     
     // 自定义禁止物品设置
     private boolean bannedItemsEnabled;
@@ -114,6 +115,7 @@ public class ConfigManager {
         downgradeEnchantments = config.getBoolean("fix-settings.downgrade-enchantments", false);
         removeOverLimitAttributes = config.getBoolean("fix-settings.remove-over-limit-attributes", true);
         downgradeAttributes = config.getBoolean("fix-settings.downgrade-attributes", false);
+        removeUnbreakable = config.getBoolean("fix-settings.remove-unbreakable", true);
         
         // 加载自定义禁止物品设置
         bannedItemsEnabled = config.getBoolean("banned-items.enabled", true);
@@ -256,6 +258,10 @@ public class ConfigManager {
 
     public boolean isDowngradeAttributes() {
         return downgradeAttributes;
+    }
+
+    public boolean isRemoveUnbreakable() {
+        return removeUnbreakable;
     }
 
     public int getMaxEnchantmentLevel() {
