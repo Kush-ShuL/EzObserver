@@ -173,35 +173,50 @@ op-items:
 potion-check:
   enabled: true
   # 最大药水效果持续时间 (秒)
-  max-duration: 600
+  max-duration: 3600
   # 最大药水效果等级 (0 = 等级I, 1 = 等级II, 以此类推)
-  max-amplifier: 2
-  # 禁止的药水效果类型
-  banned-effects:
-    - HEAL          # 瞬间治疗 (高等级)
-    - HARM          # 瞬间伤害 (高等级)
-    - INCREASE_DAMAGE  # 力量
-    - DAMAGE_RESISTANCE # 抗性提升
-    - INVISIBILITY  # 隐身
+  # 注意：正常药水最高为等级II (amplifier=1)，信标效果最高为等级II
+  # 设置为9表示允许最高等级X，超过此等级的效果将被视为作弊
+  max-amplifier: 9
+  # 禁止的药水效果类型 (默认为空，不禁止任何正常药水效果)
+  # 如需禁止特定效果，请取消注释并添加效果名称
+  # 效果名称参考: https://hub.spigotmc.org/javadocs/bukkit/org/bukkit/potion/PotionEffectType.html
+  banned-effects: []
+    # 示例:
+    # - BAD_OMEN       # 不祥之兆
+    # - HERO_OF_THE_VILLAGE  # 村庄英雄
   # 药水效果等级限制 (覆盖默认值)
+  # 注意：amplifier 从 0 开始，0 = 等级I，1 = 等级II
   effect-limits:
-    SPEED: 2           # 速度最大等级II
-    INCREASE_DAMAGE: 1 # 力量最大等级I
-    REGENERATION: 2    # 再生最大等级II
-    DAMAGE_RESISTANCE: 1 # 抗性提升最大等级I
-    JUMP: 2            # 跳跃提升最大等级II
-    HEAL: 1            # 瞬间治疗最大等级I
-    HARM: 1            # 瞬间伤害最大等级I
-    ABSORPTION: 4      # 伤害吸收最大等级IV
-    SATURATION: 0      # 饱和最大等级I
-    HEALTH_BOOST: 4    # 生命提升最大等级IV
+    SPEED: 2           # 速度最大等级III (原版最高II，容许+1)
+    INCREASE_DAMAGE: 2 # 力量最大等级III (原版最高II，容许+1)
+    STRENGTH: 2        # 力量 (1.20.5+ 新名称)
+    REGENERATION: 2    # 再生最大等级III (原版最高II，容许+1)
+    DAMAGE_RESISTANCE: 4 # 抗性提升最大等级V (信标效果)
+    RESISTANCE: 4      # 抗性提升 (1.20.5+ 新名称)
+    JUMP: 2            # 跳跃提升最大等级III
+    JUMP_BOOST: 2      # 跳跃提升 (1.20.5+ 新名称)
+    HEAL: 2            # 瞬间治疗最大等级III
+    INSTANT_HEALTH: 2  # 瞬间治疗 (1.20.5+ 新名称)
+    HARM: 2            # 瞬间伤害最大等级III
+    INSTANT_DAMAGE: 2  # 瞬间伤害 (1.20.5+ 新名称)
+    ABSORPTION: 4      # 伤害吸收最大等级V
+    SATURATION: 1      # 饱和最大等级II
+    HEALTH_BOOST: 5    # 生命提升最大等级VI
+    HASTE: 2           # 急迫最大等级III (信标效果)
+    SLOW_FALLING: 1    # 缓降最大等级II
   # 药水效果持续时间限制 (秒，覆盖默认值)
+  # 注意：原版最长药水效果为8分钟(480秒)，信标效果可达17秒
+  # 设置较大值以避免误报正常药水
   duration-limits:
-    SPEED: 480         # 速度最大8分钟
-    INCREASE_DAMAGE: 300 # 力量最大5分钟
-    REGENERATION: 120  # 再生最大2分钟
-    DAMAGE_RESISTANCE: 300 # 抗性提升最大5分钟
-    INVISIBILITY: 480  # 隐身最大8分钟
-    NIGHT_VISION: 480  # 夜视最大8分钟
-    FIRE_RESISTANCE: 480 # 火焰抗性最大8分钟
-    WATER_BREATHING: 480 # 水下呼吸最大8分钟
+    SPEED: 600         # 速度最大10分钟
+    INCREASE_DAMAGE: 600 # 力量最大10分钟
+    STRENGTH: 600      # 力量 (1.20.5+ 新名称)
+    REGENERATION: 600  # 再生最大10分钟
+    DAMAGE_RESISTANCE: 600 # 抗性提升最大10分钟
+    RESISTANCE: 600    # 抗性提升 (1.20.5+ 新名称)
+    INVISIBILITY: 600  # 隐身最大10分钟
+    NIGHT_VISION: 600  # 夜视最大10分钟
+    FIRE_RESISTANCE: 600 # 火焰抗性最大10分钟
+    WATER_BREATHING: 600 # 水下呼吸最大10分钟
+    SLOW_FALLING: 600  # 缓降最大10分钟
