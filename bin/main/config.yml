@@ -1,0 +1,222 @@
+# EzObserver 配置文件
+# 作者: Kush_ShuL
+
+# 是否启用插件
+enabled: true
+
+# 严格模式 - 开启后会检测所有物品移动事件
+# 关闭时只检测玩家背包点击和拾取物品
+strict-mode: false
+
+# 是否记录违规物品
+log-violations: true
+
+# 是否广播违规物品信息
+broadcast-violations: true
+
+# 广播消息格式 (支持变量: {player}, {item}, {reason})
+# 配色说明: &6金色=标题 &e黄色=提示 &f白色=主内容 &c红色=警告 &a绿色=成功 &7灰色=次要信息
+# 删除模式消息
+broadcast-message-delete: "&6[EzObserver] &e玩家 &f{player} &e持有违规物品 &f{item}&e: &c{reason} &7物品已删除"
+# 存储模式消息
+broadcast-message-store: "&6[EzObserver] &e玩家 &f{player} &e持有违规物品 &f{item}&e: &c{reason} &7物品已没收"
+# 修正模式消息
+broadcast-message-fix: "&6[EzObserver] &e玩家 &f{player} &e持有违规物品 &f{item}&e: &c{reason} &a正在尝试修正违规属性..."
+
+# 是否没收违规物品 (设为false则仅取消操作)
+confiscate-items: true
+
+# 没收模式: "delete" = 删除物品, "store" = 存储到没收箱, "fix" = 修正物品参数
+confiscate-mode: "fix"
+
+# 没收箱存储路径 (仅在confiscate-mode为store时有效)
+confiscate-storage-path: "plugins/EzObserver/confiscated/"
+
+# 修正模式设置 (仅在confiscate-mode为fix时有效)
+fix-settings:
+  # 是否移除超限附魔
+  remove-over-limit-enchantments: true
+  # 是否将超限附魔降级到限制等级
+  downgrade-enchantments: false
+  # 是否移除超限属性修饰符
+  remove-over-limit-attributes: true
+  # 是否将超限属性修饰符降级到限制值
+  downgrade-attributes: false
+  # 是否移除不可破坏属性
+  remove-unbreakable: true
+
+# 默认最大附魔等级限制 (用于已配置的附魔)
+max-enchantment-level: 10
+
+# 未配置附魔的最大等级限制 (使用原版最大等级)
+use-vanilla-max-for-unconfigured: true
+
+# 未配置附魔的最大等级倍数 (当use-vanilla-max-for-unconfigured为true时生效)
+unconfigured-enchantment-multiplier: 1.0
+
+# 默认最大属性修饰符数值限制
+max-attribute-modifier-amount: 100
+
+# 附魔等级限制 (可选，覆盖默认值)
+# 格式: 附魔名称: 最大等级
+enchantment-limits:
+  sharpness: 5
+  protection: 4
+  efficiency: 5
+  unbreaking: 3
+  fortune: 3
+  looting: 3
+  power: 5
+  knockback: 2
+  fire_aspect: 2
+  thorns: 3
+  depth_strider: 3
+  frost_walker: 2
+  mending: 1
+  sweeping: 3
+
+# 属性修饰符限制 (可选，覆盖默认值)
+# 格式: 属性名称: 最大数值
+# 1.21+ 版本属性名称
+attribute-limits:
+  MAX_HEALTH: 40
+  ATTACK_DAMAGE: 20
+  ATTACK_SPEED: 10
+  ARMOR: 30
+  ARMOR_TOUGHNESS: 20
+  MOVEMENT_SPEED: 1.0
+  KNOCKBACK_RESISTANCE: 1.0
+  LUCK: 10
+  SCALE: 2.0
+  STEP_HEIGHT: 2.0
+  GRAVITY: 0.1
+  SAFE_FALL_DISTANCE: 10
+  FALL_DAMAGE_MULTIPLIER: 2.0
+  JUMP_STRENGTH: 1.0
+  BLOCK_INTERACTION_RANGE: 10
+  ENTITY_INTERACTION_RANGE: 10
+  BLOCK_BREAK_SPEED: 5.0
+  MINING_EFFICIENCY: 10
+  SNEAKING_SPEED: 0.5
+  SUBMERGED_MINING_SPEED: 5.0
+  SWEEPING_DAMAGE_RATIO: 1.0
+  BURNING_TIME: 10
+  EXPLOSION_KNOCKBACK_RESISTANCE: 1.0
+  MOVEMENT_EFFICIENCY: 1.0
+  OXYGEN_BONUS: 10
+  WATER_MOVEMENT_EFFICIENCY: 1.0
+  TEMPT_RANGE: 20
+
+# 自定义禁止物品列表
+# 根据物品名称或Lore关键词检测
+banned-items:
+  enabled: true
+  # 违禁物品处理模式: "delete" = 删除物品, "notify" = 仅通知不删除
+  action-mode: "delete"
+  # 禁止的物品名称关键词 (支持颜色代码)
+  name-keywords:
+    - "§4§l神器"
+    - "§c§l禁忌之剑"
+    - "§5§l毁灭之刃"
+    - "§6§l无敌护甲"
+    - "§b§l创世神剑"
+    - "OP武器"
+    - "作弊物品"
+  # 禁止的Lore关键词
+  lore-keywords:
+    - "§4禁止使用"
+    - "§c非法物品"
+    - "§5无限伤害"
+    - "§6无敌"
+    - "一击必杀"
+    - "无限生命"
+  # 禁止的物品类型 (Material名称)
+  # 包括命令方块、结构方块、屏障等创造模式专用物品
+  banned-materials:
+    - COMMAND_BLOCK
+    - COMMAND_BLOCK_MINECART
+    - CHAIN_COMMAND_BLOCK
+    - REPEATING_COMMAND_BLOCK
+    - STRUCTURE_BLOCK
+    - STRUCTURE_VOID
+    - JIGSAW
+    - BARRIER
+    - LIGHT
+    - DEBUG_STICK
+    - SPAWNER
+    - KNOWLEDGE_BOOK        # 知识之书（创造模式专用）
+    - PETRIFIED_OAK_SLAB    # 石化橡木台阶（已移除物品）
+    # 注意：收纳袋（BUNDLE）是合法物品，但其内容会被检测和修复
+  # 禁止的刷怪蛋类型
+  # 这些生物不应该被玩家获得或生成
+  banned-spawn-eggs:
+    - WITHER_SPAWN_EGG           # 凋零刷怪蛋
+    - ENDER_DRAGON_SPAWN_EGG     # 末影龙刷怪蛋
+    - GIANT_SPAWN_EGG            # 巨人刷怪蛋
+    - ILLUSIONER_SPAWN_EGG       # 幻术师刷怪蛋
+    - ELDER_GUARDIAN_SPAWN_EGG   # 远古守卫者刷怪蛋
+    - WARDEN_SPAWN_EGG           # 监守者刷怪蛋
+
+# 预制OP物品检测规则
+op-items:
+  enabled: true
+  # 检测附魔总等级超过此值的物品
+  max-total-enchantment-level: 50
+  # 检测单个附魔超过原版最大等级倍数
+  max-enchantment-multiplier: 2.0
+  # 检测属性修饰符总数量超过此值
+  max-attribute-count: 10
+  # 检测单个属性修饰符超过原版最大值倍数
+  max-attribute-multiplier: 5.0
+
+# 药水检测设置
+potion-check:
+  enabled: true
+  # 最大药水效果持续时间 (秒)
+  max-duration: 3600
+  # 最大药水效果等级 (0 = 等级I, 1 = 等级II, 以此类推)
+  # 注意：正常药水最高为等级II (amplifier=1)，信标效果最高为等级II
+  # 设置为9表示允许最高等级X，超过此等级的效果将被视为作弊
+  max-amplifier: 9
+  # 禁止的药水效果类型 (默认为空，不禁止任何正常药水效果)
+  # 如需禁止特定效果，请取消注释并添加效果名称
+  # 效果名称参考: https://hub.spigotmc.org/javadocs/bukkit/org/bukkit/potion/PotionEffectType.html
+  banned-effects: []
+    # 示例:
+    # - BAD_OMEN       # 不祥之兆
+    # - HERO_OF_THE_VILLAGE  # 村庄英雄
+  # 药水效果等级限制 (覆盖默认值)
+  # 注意：amplifier 从 0 开始，0 = 等级I，1 = 等级II
+  effect-limits:
+    SPEED: 2           # 速度最大等级III (原版最高II，容许+1)
+    INCREASE_DAMAGE: 2 # 力量最大等级III (原版最高II，容许+1)
+    STRENGTH: 2        # 力量 (1.20.5+ 新名称)
+    REGENERATION: 2    # 再生最大等级III (原版最高II，容许+1)
+    DAMAGE_RESISTANCE: 4 # 抗性提升最大等级V (信标效果)
+    RESISTANCE: 4      # 抗性提升 (1.20.5+ 新名称)
+    JUMP: 2            # 跳跃提升最大等级III
+    JUMP_BOOST: 2      # 跳跃提升 (1.20.5+ 新名称)
+    HEAL: 2            # 瞬间治疗最大等级III
+    INSTANT_HEALTH: 2  # 瞬间治疗 (1.20.5+ 新名称)
+    HARM: 2            # 瞬间伤害最大等级III
+    INSTANT_DAMAGE: 2  # 瞬间伤害 (1.20.5+ 新名称)
+    ABSORPTION: 4      # 伤害吸收最大等级V
+    SATURATION: 1      # 饱和最大等级II
+    HEALTH_BOOST: 5    # 生命提升最大等级VI
+    HASTE: 2           # 急迫最大等级III (信标效果)
+    SLOW_FALLING: 1    # 缓降最大等级II
+  # 药水效果持续时间限制 (秒，覆盖默认值)
+  # 注意：原版最长药水效果为8分钟(480秒)，信标效果可达17秒
+  # 设置较大值以避免误报正常药水
+  duration-limits:
+    SPEED: 600         # 速度最大10分钟
+    INCREASE_DAMAGE: 600 # 力量最大10分钟
+    STRENGTH: 600      # 力量 (1.20.5+ 新名称)
+    REGENERATION: 600  # 再生最大10分钟
+    DAMAGE_RESISTANCE: 600 # 抗性提升最大10分钟
+    RESISTANCE: 600    # 抗性提升 (1.20.5+ 新名称)
+    INVISIBILITY: 600  # 隐身最大10分钟
+    NIGHT_VISION: 600  # 夜视最大10分钟
+    FIRE_RESISTANCE: 600 # 火焰抗性最大10分钟
+    WATER_BREATHING: 600 # 水下呼吸最大10分钟
+    SLOW_FALLING: 600  # 缓降最大10分钟

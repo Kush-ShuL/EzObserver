@@ -20,10 +20,6 @@ public class PlayerEffectListener implements Listener {
     private final EzObserver plugin;
     private final PotionEffectLimitManager potionEffectLimitManager;
     
-    // 极端效果阈值
-    private static final int EXTREME_AMPLIFIER_THRESHOLD = 117; // 约等于 126-9
-    private static final int EXTREME_DURATION_THRESHOLD = 2147483640; // 接近 Integer.MAX_VALUE
-    
     public PlayerEffectListener(EzObserver plugin) {
         this.plugin = plugin;
         this.potionEffectLimitManager = plugin.getPotionEffectLimitManager();
@@ -59,7 +55,8 @@ public class PlayerEffectListener implements Listener {
         int duration = newEffect.getDuration();
         
         // 检查是否是极端作弊效果
-        if (amplifier >= EXTREME_AMPLIFIER_THRESHOLD || duration >= EXTREME_DURATION_THRESHOLD) {
+        if (amplifier >= PotionEffectLimitManager.EXTREME_AMPLIFIER_THRESHOLD || 
+            duration >= PotionEffectLimitManager.EXTREME_DURATION_THRESHOLD) {
             event.setCancelled(true);
             plugin.getLogger().warning(String.format("阻止玩家 %s 获得极端作弊效果: %s 等级 %d 持续时间 %d ticks",
                 player.getName(), effectName, amplifier + 1, duration));

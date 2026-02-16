@@ -1,0 +1,23 @@
+# EzObserver 白名单配置文件
+# 此文件用于配置白名单物品，白名单中的物品将不会被检测
+
+# 白名单物品列表
+# 格式: "物品类型:物品名称:Lore"
+# 示例:
+# - "DIAMOND_SWORD:§b神剑:§7一把强大的武器"
+# - "DIAMOND:§a绿宝石:§7珍贵的宝石"
+# - "BOOK:§e附魔书:§7包含强大附魔"
+
+whitelisted-items:
+  # 示例白名单物品
+  # - "DIAMOND_SWORD:§b神剑:§7一把强大的武器"
+  # - "DIAMOND:§a绿宝石:§7珍贵的宝石"
+
+# 白名单模式
+# strict: 严格匹配（物品类型、名称、Lore都必须完全匹配）
+# loose: 宽松匹配（只匹配物品类型和名称）
+# type: 仅匹配物品类型
+mode: "strict"
+
+# 是否启用白名单
+enabled: true

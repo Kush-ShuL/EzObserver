@@ -63,6 +63,19 @@ public class ConfigManager {
     private Set<String> bannedPotionEffects;
     private Map<String, Integer> potionEffectLimits;
     private Map<String, Integer> potionDurationLimits;
+    
+    // 白名单管理器
+    private WhitelistManager whitelistManager;
+    
+    // 高级功能配置
+    private boolean realTimeMonitoringEnabled;
+    private boolean autoFixEnabled;
+    private boolean autoDeleteEnabled;
+    private int realTimeScanInterval;
+    private int maxViolationHistory;
+    private boolean reportGenerationEnabled;
+    private long reportRetentionDays;
+    private boolean permissionBypassEnabled;
 
     public ConfigManager(EzObserver plugin) {
         this.plugin = plugin;
@@ -75,6 +88,7 @@ public class ConfigManager {
         this.bannedPotionEffects = new HashSet<>();
         this.potionEffectLimits = new HashMap<>();
         this.potionDurationLimits = new HashMap<>();
+        this.whitelistManager = new WhitelistManager(plugin);
     }
 
     public void loadConfig() {
@@ -174,11 +188,22 @@ public class ConfigManager {
                 potionDurationLimits.put(key.toUpperCase(), config.getInt("potion-check.duration-limits." + key));
             }
         }
+        
+        // 加载高级功能配置
+        realTimeMonitoringEnabled = config.getBoolean("advanced.real-time-monitoring.enabled", true);
+        autoFixEnabled = config.getBoolean("advanced.auto-fix.enabled", false);
+        autoDeleteEnabled = config.getBoolean("advanced.auto-delete.enabled", false);
+        realTimeScanInterval = config.getInt("advanced.real-time-monitoring.scan-interval", 20);
+        maxViolationHistory = config.getInt("advanced.max-violation-history", 100);
+        reportGenerationEnabled = config.getBoolean("advanced.report-generation.enabled", true);
+        reportRetentionDays = config.getLong("advanced.report-generation.retention-days", 30);
+        permissionBypassEnabled = config.getBoolean("advanced.permission-bypass.enabled", true);
     }
 
     public void reloadConfig() {
         plugin.reloadConfig();
         loadConfig();
+        whitelistManager.reloadWhitelist();
     }
 
     public boolean isEnabled() {
@@ -385,5 +410,42 @@ public class ConfigManager {
 
     public boolean hasPotionDurationLimit(String effectType) {
         return potionDurationLimits.containsKey(effectType.toUpperCase());
+    }
+    
+    public WhitelistManager getWhitelistManager() {
+        return whitelistManager;
+    }
+
+    // 高级功能配置方法
+    public boolean isRealTimeMonitoringEnabled() {
+        return realTimeMonitoringEnabled;
+    }
+
+    public boolean isAutoFixEnabled() {
+        return autoFixEnabled;
+    }
+
+    public boolean isAutoDeleteEnabled() {
+        return autoDeleteEnabled;
+    }
+
+    public int getRealTimeScanInterval() {
+        return realTimeScanInterval;
+    }
+
+    public int getMaxViolationHistory() {
+        return maxViolationHistory;
+    }
+
+    public boolean isReportGenerationEnabled() {
+        return reportGenerationEnabled;
+    }
+
+    public long getReportRetentionDays() {
+        return reportRetentionDays;
+    }
+
+    public boolean isPermissionBypassEnabled() {
+        return permissionBypassEnabled;
     }
 }

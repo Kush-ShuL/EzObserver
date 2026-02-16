@@ -1,5 +1,6 @@
 package top.mc_plfd_host.ezobserver.scanner;
 
+import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
@@ -10,10 +11,13 @@ import org.bukkit.inventory.PlayerInventory;
 import top.mc_plfd_host.ezobserver.EzObserver;
 import top.mc_plfd_host.ezobserver.checker.ItemChecker;
 import top.mc_plfd_host.ezobserver.config.ConfigManager;
+import top.mc_plfd_host.ezobserver.config.MessageManager;
 import top.mc_plfd_host.ezobserver.fixer.ItemFixer;
 
 import java.io.File;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
@@ -47,16 +51,17 @@ public class WorldScanner {
     }
 
     public void startFullScan(Player executor) {
+        MessageManager messages = plugin.getMessageManager();
         if (isScanning) {
-            executor.sendMessage("§c[EzObserver] 扫描正在进行中，请稍后再试");
+            sendMessage(executor, messages.getScanAlreadyRunning());
             return;
         }
 
         isScanning = true;
         resetCounters();
         
-        executor.sendMessage("§a[EzObserver] 开始全服扫描...");
-        executor.sendMessage("§7注意: Folia环境限制，仅扫描玩家背包和离线玩家数据");
+        sendMessage(executor, messages.getScanStarted());
+        sendMessage(executor, messages.getScanWarningFolia());
         logger.info("开始全服扫描，执行者: " + executor.getName());
 
         try {
@@ -67,20 +72,23 @@ public class WorldScanner {
             scanOfflinePlayers();
             
             // 暂时跳过世界容器扫描（Folia线程限制）
-            executor.sendMessage("§7世界容器扫描: §c由于Folia服务器线程限制已跳过");
+            sendMessage(executor, messages.getScanSkippedContainers());
             
             // 完成扫描
             isScanning = false;
-            String summary = getScanSummary();
-            executor.sendMessage(summary);
-            logger.info(summary.replace("§", ""));
+            sendScanSummary(executor);
+            logger.info("全服扫描完成");
             
         } catch (Exception e) {
             isScanning = false;
             logger.severe("扫描过程中发生错误: " + e.getMessage());
             e.printStackTrace();
-            executor.sendMessage("§c[EzObserver] 扫描过程中发生错误: " + e.getMessage());
+            sendMessage(executor, messages.getScanError(e.getMessage()));
         }
+    }
+
+    private void sendMessage(Player player, Component component) {
+        plugin.adventure().player(player).sendMessage(component);
     }
 
     private void resetCounters() {
@@ -175,23 +183,28 @@ public class WorldScanner {
         logger.info("离线玩家数据扫描完成");
     }
 
-    public String getScanSummary() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("§a[EzObserver] §e扫描完成!\n");
-        sb.append("§7扫描在线玩家: §f").append(scannedPlayers.get()).append("\n");
-        sb.append("§7扫描离线玩家: §f").append(scannedOfflinePlayers.get()).append("\n");
-        sb.append("§7世界容器: §f").append(scannedContainers.get()).append(" (已跳过)\n");
-        sb.append("§7发现违规: §c").append(violationsFound.get()).append("\n");
+    private void sendScanSummary(Player executor) {
+        MessageManager messages = plugin.getMessageManager();
+        sendMessage(executor, messages.getMessage("scan-complete"));
+        
+        Map<String, String> placeholders = new HashMap<>();
+        
+        placeholders.put("count", String.valueOf(scannedPlayers.get()));
+        sendMessage(executor, messages.getMessage("scan-players", placeholders));
+        
+        placeholders.put("count", String.valueOf(scannedContainers.get()));
+        sendMessage(executor, messages.getMessage("scan-chunks", placeholders)); // 借用 scan-chunks
+        
+        placeholders.put("count", String.valueOf(violationsFound.get()));
+        sendMessage(executor, messages.getMessage("scan-violations", placeholders));
         
         if (configManager.isDeleteMode()) {
-            sb.append("§7已删除物品: §c").append(itemsDeleted.get()).append(" (未执行)");
+            placeholders.put("count", String.valueOf(itemsDeleted.get()));
+            sendMessage(executor, messages.getMessage("scan-deleted", placeholders));
         } else if (configManager.isFixMode()) {
-            sb.append("§7已修正物品: §a").append(itemsFixed.get()).append(" (未执行)");
+            placeholders.put("count", String.valueOf(itemsFixed.get()));
+            sendMessage(executor, messages.getMessage("scan-fixed", placeholders));
         }
-        
-        sb.append("\n§7注意: 由于Folia线程限制，世界容器扫描已跳过");
-        
-        return sb.toString();
     }
 
     public int getScannedPlayers() {

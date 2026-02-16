@@ -1,15 +1,19 @@
 package top.mc_plfd_host.ezobserver.config;
 
-import org.bukkit.ChatColor;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import top.mc_plfd_host.ezobserver.EzObserver;
 
 import java.io.File;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class MessageManager {
@@ -18,10 +22,12 @@ public class MessageManager {
     private FileConfiguration messagesConfig;
     private File messagesFile;
     private Map<String, String> messages;
+    private final MiniMessage miniMessage;
 
     public MessageManager(EzObserver plugin) {
         this.plugin = plugin;
         this.messages = new HashMap<>();
+        this.miniMessage = MiniMessage.miniMessage();
     }
 
     public void loadMessages() {
@@ -54,37 +60,64 @@ public class MessageManager {
         loadMessages();
     }
 
-    public String getMessage(String key) {
+    private String convertLegacyToMiniMessage(String legacy) {
+        if (legacy == null) return "";
+        return legacy
+                .replace("&0", "<black>")
+                .replace("&1", "<dark_blue>")
+                .replace("&2", "<dark_green>")
+                .replace("&3", "<dark_aqua>")
+                .replace("&4", "<dark_red>")
+                .replace("&5", "<dark_purple>")
+                .replace("&6", "<gold>")
+                .replace("&7", "<gray>")
+                .replace("&8", "<dark_gray>")
+                .replace("&9", "<blue>")
+                .replace("&a", "<green>")
+                .replace("&b", "<aqua>")
+                .replace("&c", "<red>")
+                .replace("&d", "<light_purple>")
+                .replace("&e", "<yellow>")
+                .replace("&f", "<white>")
+                .replace("&k", "<obfuscated>")
+                .replace("&l", "<b>")
+                .replace("&m", "<strikethrough>")
+                .replace("&n", "<u>")
+                .replace("&o", "<i>")
+                .replace("&r", "<reset>");
+    }
+
+    public Component getMessage(String key) {
         String message = messages.getOrDefault(key, "Missing message: " + key);
-        return ChatColor.translateAlternateColorCodes('&', message);
+        return miniMessage.deserialize(convertLegacyToMiniMessage(message));
     }
 
-    public String getMessage(String key, Map<String, String> placeholders) {
-        String message = getMessage(key);
+    public Component getMessage(String key, Map<String, String> placeholders) {
+        String message = messages.getOrDefault(key, "Missing message: " + key);
+        List<TagResolver> resolvers = new ArrayList<>();
         for (Map.Entry<String, String> entry : placeholders.entrySet()) {
-            message = message.replace("{" + entry.getKey() + "}", entry.getValue());
+            resolvers.add(Placeholder.parsed(entry.getKey(), convertLegacyToMiniMessage(entry.getValue())));
         }
-        return message;
+        return miniMessage.deserialize(convertLegacyToMiniMessage(message), TagResolver.resolver(resolvers));
     }
 
-    public String getPrefix() {
-        return getMessage("prefix") + " ";
+    public Component getPrefix() {
+        return getMessage("prefix").append(Component.text(" "));
     }
 
-    // 便捷方法
-    public String getNoPermission() {
-        return getPrefix() + getMessage("no-permission");
+    public Component getNoPermission() {
+        return getPrefix().append(getMessage("no-permission"));
     }
 
-    public String getConfigReloaded() {
-        return getPrefix() + getMessage("config-reloaded");
+    public Component getConfigReloaded() {
+        return getPrefix().append(getMessage("config-reloaded"));
     }
 
-    public String getPlayerOnly() {
-        return getPrefix() + getMessage("player-only");
+    public Component getPlayerOnly() {
+        return getPrefix().append(getMessage("player-only"));
     }
 
-    public String getBroadcastMessage(String mode) {
+    public Component getBroadcastMessage(String mode) {
         switch (mode.toLowerCase()) {
             case "delete":
                 return getMessage("broadcast-delete");
@@ -97,25 +130,33 @@ public class MessageManager {
         }
     }
 
-    public String getScanAlreadyRunning() {
-        return getPrefix() + getMessage("scan-already-running");
+    public Component getScanAlreadyRunning() {
+        return getPrefix().append(getMessage("scan-already-running"));
     }
 
-    public String getScanStarted() {
-        return getPrefix() + getMessage("scan-started");
+    public Component getScanStarted() {
+        return getPrefix().append(getMessage("scan-started"));
     }
 
-    public String getScanError(String error) {
+    public Component getScanWarningFolia() {
+        return getMessage("scan-warning-folia");
+    }
+
+    public Component getScanSkippedContainers() {
+        return getMessage("scan-skipped-containers");
+    }
+
+    public Component getScanError(String error) {
         Map<String, String> placeholders = new HashMap<>();
         placeholders.put("error", error);
-        return getPrefix() + getMessage("scan-error", placeholders);
+        return getPrefix().append(getMessage("scan-error", placeholders));
     }
 
     public String getStatusOn() {
-        return getMessage("status-on");
+        return messages.getOrDefault("status-on", "&aOn");
     }
 
     public String getStatusOff() {
-        return getMessage("status-off");
+        return messages.getOrDefault("status-off", "&cOff");
     }
 }

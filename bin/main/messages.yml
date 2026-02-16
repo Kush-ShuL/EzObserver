@@ -63,20 +63,3 @@ check-no-item: "&cYou are not holding any item!"
 check-safe: "&aItem check passed, no violations found!"
 check-violations: "&cViolations found:"
 check-violation-item: "&7- &e{violation}"
-
-# Whitelist Messages
-help-whitelist: "&e/ezobserver whitelist <add|remove|list|reload> &7- Manage whitelist"
-whitelist-help: |
-  &6========== Whitelist Help ==========
-  &e/ezobserver whitelist add &7- Add held item to whitelist
-  &e/ezobserver whitelist remove &7- Remove held item from whitelist
-  &e/ezobserver whitelist list &7- List all whitelisted items
-  &e/ezobserver whitelist reload &7- Reload whitelist from file
-  &6=====================================
-whitelist-no-item: "&cYou are not holding any item!"
-whitelist-added: "&aItem added to whitelist!"
-whitelist-removed: "&aItem removed from whitelist!"
-whitelist-reloaded: "&aWhitelist reloaded!"
-whitelist-empty: "&eWhitelist is empty"
-whitelist-list-header: "&6========== Whitelist Items =========="
-whitelist-list-item: "&7- &f{entry}"

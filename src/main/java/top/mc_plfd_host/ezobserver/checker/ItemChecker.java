@@ -3,7 +3,10 @@ package top.mc_plfd_host.ezobserver.checker;
 import org.bukkit.Material;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeModifier;
+import org.bukkit.block.BlockState;
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.type.Piston;
@@ -50,50 +53,45 @@ public class ItemChecker {
             return violations;
         }
         
-        // 检查禁止的物品类型
-        violations.addAll(checkBannedMaterial(item));
-        
-        // 检查禁止的物品名称和Lore
-        if (item.hasItemMeta()) {
-            ItemMeta meta = item.getItemMeta();
-            violations.addAll(checkBannedNameAndLore(meta));
-            
-            // 检查属性修饰符
-            violations.addAll(checkAttributeModifiers(meta));
-            
-            // 检查不可破坏属性
-            violations.addAll(checkUnbreakable(meta, item.getType()));
+        // 快速检查：空物品直接返回
+        if (item.getType() == Material.AIR) {
+            return violations;
         }
         
-        // 检查附魔
-        violations.addAll(checkEnchantments(item));
+        // 检查是否在白名单中（使用缓存优化）
+        if (configManager.getWhitelistManager().isWhitelisted(item)) {
+            return violations;
+        }
         
-        // 检查非法附魔（附魔不能应用到不允许的物品上）
-        violations.addAll(checkIllegalEnchantments(item));
+        // 检查禁止的物品类型（快速路径）
+        if (configManager.isBannedItemsEnabled()) {
+            if (configManager.isBannedMaterial(item.getType()) ||
+                configManager.isBannedSpawnEgg(item.getType())) {
+                violations.add(String.format("禁止的物品类型: %s", item.getType().name()));
+                return violations; // 直接返回，避免后续检查
+            }
+        }
         
-        // 检查冲突附魔
-        violations.addAll(checkConflictingEnchantments(item));
+        // 检查附魔（快速路径）
+        Map<Enchantment, Integer> enchantments = item.getEnchantments();
+        if (!enchantments.isEmpty()) {
+            violations.addAll(checkEnchantments(item));
+            violations.addAll(checkIllegalEnchantments(item));
+            violations.addAll(checkConflictingEnchantments(item));
+            violations.addAll(checkOpItem(item));
+        }
         
-        // 检查OP物品
-        violations.addAll(checkOpItem(item));
+        // 检查物品元数据（仅在必要时）
+        if (item.hasItemMeta()) {
+            ItemMeta meta = item.getItemMeta();
+            if (meta != null) {
+                // 批量检查元数据相关
+                violations.addAll(checkItemMetaViolations(meta, item.getType()));
+            }
+        }
         
-        // 检查药水
-        violations.addAll(checkPotion(item));
-        
-        // 检查刷怪蛋NBT
-        violations.addAll(checkSpawnEgg(item));
-        
-        // 检查烟花火箭
-        violations.addAll(checkFireworkRocket(item));
-        
-        // 检查无头活塞
-        violations.addAll(checkExtendedPiston(item));
-        
-        // 检查收纳袋（Bundle）内容（1.21.4+）
-        violations.addAll(checkBundle(item));
-        
-        // 检查空数据物品（空成书、空附魔书、空地图）
-        violations.addAll(checkEmptyDataItem(item));
+        // 检查特殊物品类型（按需检查）
+        violations.addAll(checkSpecialItems(item));
         
         return violations;
     }
@@ -266,6 +264,78 @@ public class ItemChecker {
     public boolean shouldDeleteBannedItem() {
         return configManager.isBannedItemsDeleteMode();
     }
+    
+    /**
+     * 批量检查物品元数据违规
+     * 优化性能，减少重复检查
+     */
+    private List<String> checkItemMetaViolations(ItemMeta meta, Material type) {
+        List<String> violations = new ArrayList<>();
+        
+        // 检查禁止的名称和Lore
+        violations.addAll(checkBannedNameAndLore(meta));
+        
+        // 检查属性修饰符
+        violations.addAll(checkAttributeModifiers(meta));
+        
+        // 检查不可破坏属性
+        violations.addAll(checkUnbreakable(meta, type));
+        
+        return violations;
+    }
+    
+    /**
+     * 检查特殊物品类型
+     * 按需检查，避免不必要的处理
+     */
+    private List<String> checkSpecialItems(ItemStack item) {
+        List<String> violations = new ArrayList<>();
+        Material type = item.getType();
+        
+        // 检查药水类物品
+        if (type == Material.POTION || type == Material.SPLASH_POTION ||
+            type == Material.LINGERING_POTION || type == Material.TIPPED_ARROW) {
+            violations.addAll(checkPotion(item));
+        }
+        
+        // 检查刷怪蛋
+        if (isSpawnEgg(type)) {
+            violations.addAll(checkSpawnEgg(item));
+        }
+        
+        // 检查烟花火箭
+        if (type == Material.FIREWORK_ROCKET) {
+            violations.addAll(checkFireworkRocket(item));
+        }
+        
+        // 检查活塞
+        if (type == Material.PISTON || type == Material.STICKY_PISTON) {
+            violations.addAll(checkExtendedPiston(item));
+        }
+        
+        // 检查自定义实体数据
+        if (type == Material.ITEM_FRAME || type == Material.GLOW_ITEM_FRAME ||
+            type == Material.ARMOR_STAND) {
+            if (hasCustomEntityData(item)) {
+                violations.add(String.format("物品 %s 包含自定义实体数据 (疑似作弊物品)", type.name()));
+            }
+        }
+        
+        // 检查容器
+        if (isContainer(type)) {
+            violations.addAll(checkContainer(item));
+        }
+        
+        // 检查收纳袋
+        if (type == Material.BUNDLE) {
+            violations.addAll(checkBundle(item));
+        }
+        
+        // 检查空数据物品
+        violations.addAll(checkEmptyDataItem(item));
+        
+        return violations;
+    }
 
     private List<String> checkBannedNameAndLore(ItemMeta meta) {
         List<String> violations = new ArrayList<>();
@@ -274,7 +344,7 @@ public class ItemChecker {
             return violations;
         }
         
-        // 检查物品名称
+        // 检查物品名称 - 使用legacy API避免类型不兼容
         if (meta.hasDisplayName()) {
             String displayName = meta.getDisplayName();
             for (String keyword : configManager.getBannedNameKeywords()) {
@@ -285,7 +355,7 @@ public class ItemChecker {
             }
         }
         
-        // 检查Lore
+        // 检查Lore - 使用legacy API避免类型不兼容
         if (meta.hasLore()) {
             List<String> lore = meta.getLore();
             if (lore != null) {
@@ -385,9 +455,8 @@ public class ItemChecker {
         
         // 检查基础药水效果
         if (potionMeta.getBasePotionType() != null) {
-            for (PotionEffect effect : potionMeta.getBasePotionType().getPotionEffects()) {
-                violations.addAll(checkPotionEffect(effect));
-            }
+            // 基础药水效果通常是原版的，跳过等级和时间检查，除非它是特殊的
+            // 这里我们主要检查自定义效果
         }
         
         return violations;
@@ -410,7 +479,8 @@ public class ItemChecker {
         
         // 检查是否是极端作弊效果（超高等级或超长时间）
         // amplifier >= 117 或 duration 接近 Integer.MAX_VALUE 被视为极端作弊
-        if (amplifier >= 117 || durationTicks >= 2147483640) {
+        if (amplifier >= PotionEffectLimitManager.EXTREME_AMPLIFIER_THRESHOLD || 
+            durationTicks >= PotionEffectLimitManager.EXTREME_DURATION_THRESHOLD) {
             violations.add(String.format("极端作弊药水效果: %s 等级 %d 持续时间 %d ticks (疑似作弊物品)",
                 effectName, amplifier + 1, durationTicks));
             return violations;
@@ -666,6 +736,81 @@ public class ItemChecker {
     }
 
     /**
+     * 检查容器（如潜影盒、箱子等）中的内容
+     */
+    private List<String> checkContainer(ItemStack item) {
+        List<String> violations = new ArrayList<>();
+        
+        if (!isContainer(item.getType())) {
+            return violations;
+        }
+        
+        if (!item.hasItemMeta() || !(item.getItemMeta() instanceof BlockStateMeta)) {
+            return violations;
+        }
+        
+        BlockStateMeta blockStateMeta = (BlockStateMeta) item.getItemMeta();
+        if (!blockStateMeta.hasBlockState()) {
+            return violations;
+        }
+        
+        BlockState blockState = blockStateMeta.getBlockState();
+        if (!(blockState instanceof InventoryHolder)) {
+            return violations;
+        }
+        
+        InventoryHolder holder = (InventoryHolder) blockState;
+        Inventory inventory = holder.getInventory();
+        
+        int violatingItemCount = 0;
+        List<String> contentViolations = new ArrayList<>();
+        
+        for (int i = 0; i < inventory.getSize(); i++) {
+            ItemStack contentItem = inventory.getItem(i);
+            if (contentItem == null || contentItem.getType() == Material.AIR) continue;
+            
+            // 递归检查
+            List<String> itemViolations = checkItem(contentItem);
+            
+            if (!itemViolations.isEmpty()) {
+                violatingItemCount++;
+                contentViolations.add(String.format("  [插槽 %d] %s: %s", i, contentItem.getType().name(),
+                    String.join("; ", itemViolations)));
+            }
+        }
+        
+        if (violatingItemCount > 0) {
+            violations.add(String.format("容器 %s 包含 %d 个违规物品:",
+                item.getType().name(), violatingItemCount));
+            violations.addAll(contentViolations);
+        }
+        
+        return violations;
+    }
+    
+    /**
+     * 检查材质是否是容器
+     */
+    private boolean isContainer(Material material) {
+        String name = material.name();
+        return name.endsWith("SHULKER_BOX") || 
+               name.equals("CHEST") || 
+               name.equals("TRAPPED_CHEST") || 
+               name.equals("BARREL") || 
+               name.equals("DISPENSER") || 
+               name.equals("DROPPER") || 
+               name.equals("HOPPER") ||
+               name.equals("FURNACE") ||
+               name.equals("BLAST_FURNACE") ||
+               name.equals("SMOKER") ||
+               name.equals("BREWING_STAND") ||
+               name.equals("LECTERN") ||
+               name.equals("CHISELED_BOOKSHELF") ||
+               name.equals("JUKEBOX") ||
+               name.equals("CRAFTER");
+    }
+
+    /**
      * 检查收纳袋（Bundle）内容
      * 收纳袋可能包含违规物品，需要递归检查
      *
@@ -719,18 +864,6 @@ public class ItemChecker {
                 String itemName = contentItem.getType().name();
                 contentViolations.add(String.format("  [%d] %s: %s", i + 1, itemName,
                     String.join("; ", itemViolations)));
-            }
-            
-            // 检查是否是违禁物品
-            if (isBannedItem(contentItem)) {
-                violatingItemCount++;
-                contentViolations.add(String.format("  [%d] 违禁物品: %s", i + 1, contentItem.getType().name()));
-            }
-            
-            // 检查是否有自定义实体数据（物品展示框、盔甲架等）
-            if (hasCustomEntityData(contentItem)) {
-                violatingItemCount++;
-                contentViolations.add(String.format("  [%d] 包含自定义实体数据: %s", i + 1, contentItem.getType().name()));
             }
         }
         

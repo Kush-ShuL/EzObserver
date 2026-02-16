@@ -26,6 +26,17 @@ public class PotionEffectLimitManager {
     
     // 绝对最大等级限制（超过此等级必定为作弊）
     private static final int ABSOLUTE_MAX_LEVEL = 127;
+
+    // 极端效果阈值
+    public static final int EXTREME_AMPLIFIER_THRESHOLD = 117; // 约等于 126-9
+    public static final int EXTREME_DURATION_THRESHOLD = 2147483640; // 接近 Integer.MAX_VALUE
+
+    // 常见的虚假效果名称映射（用于解决 Bukkit 的奇怪行为）
+    private static final Map<String, String> FAKE_EFFECT_MAPPINGS = new HashMap<>();
+
+    static {
+        FAKE_EFFECT_MAPPINGS.put("UNCRAFTABLE", "LUCK");
+    }
     
     public PotionEffectLimitManager() {
         this.potionObtainableEffects = new HashMap<>();
@@ -188,12 +199,19 @@ public class PotionEffectLimitManager {
      * @return 是否超限
      */
     public boolean isOverLimit(String effectName, int amplifier) {
+        String normalizedName = normalizeEffectName(effectName);
+
+        // 如果是不可获取的效果（可能是 Bukkit 内部占位符），跳过检查
+        if (normalizedName.equals("UNCRAFTABLE")) {
+            return false;
+        }
+
         // 超过绝对最大等级（如126级）必定为作弊
         if (amplifier >= ABSOLUTE_MAX_LEVEL - 10) {
             return true;
         }
         
-        int maxLevel = getMaxLevel(effectName);
+        int maxLevel = getMaxLevel(normalizedName);
         // 允许超过正常最大等级2级
         return amplifier > maxLevel + LEVEL_TOLERANCE;
     }
@@ -228,6 +246,11 @@ public class PotionEffectLimitManager {
         // 移除 minecraft: 前缀
         if (normalized.startsWith("MINECRAFT:")) {
             normalized = normalized.substring(10);
+        }
+
+        // 处理虚假效果映射
+        if (FAKE_EFFECT_MAPPINGS.containsKey(normalized)) {
+            normalized = FAKE_EFFECT_MAPPINGS.get(normalized);
         }
         
         return normalized;

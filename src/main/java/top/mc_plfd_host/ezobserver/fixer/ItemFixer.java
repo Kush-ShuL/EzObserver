@@ -2,10 +2,14 @@ package top.mc_plfd_host.ezobserver.fixer;
 
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeModifier;
+import org.bukkit.block.BlockState;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.Material;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.BlockStateMeta;
 import org.bukkit.inventory.meta.BookMeta;
 import org.bukkit.inventory.meta.BundleMeta;
 import org.bukkit.inventory.meta.EnchantmentStorageMeta;
@@ -17,6 +21,7 @@ import org.bukkit.inventory.meta.SpawnEggMeta;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import top.mc_plfd_host.ezobserver.EzObserver;
+import top.mc_plfd_host.ezobserver.checker.ItemChecker;
 import top.mc_plfd_host.ezobserver.config.ConfigManager;
 import top.mc_plfd_host.ezobserver.config.EnchantmentConflictManager;
 import top.mc_plfd_host.ezobserver.config.PotionEffectLimitManager;
@@ -34,12 +39,14 @@ public class ItemFixer {
     private final ConfigManager configManager;
     private final EnchantmentConflictManager conflictManager;
     private final PotionEffectLimitManager potionEffectLimitManager;
+    private final ItemChecker itemChecker;
 
     public ItemFixer(EzObserver plugin) {
         this.plugin = plugin;
         this.configManager = plugin.getConfigManager();
         this.conflictManager = plugin.getEnchantmentConflictManager();
         this.potionEffectLimitManager = plugin.getPotionEffectLimitManager();
+        this.itemChecker = new ItemChecker(plugin);
     }
 
     public ItemStack fixItem(ItemStack item) {
@@ -75,6 +82,9 @@ public class ItemFixer {
 
         // 修正无头活塞
         fixExtendedPiston(fixedItem);
+
+        // 修正容器内容（潜影盒、箱子等）
+        fixContainer(fixedItem);
 
         // 修正收纳袋（Bundle）内容（1.21.4+）
         fixBundle(fixedItem);
@@ -551,7 +561,8 @@ public class ItemFixer {
                 
                 // 检查是否是极端效果（超高等级或超长时间）
                 // amplifier >= 117 (约等于 126-9) 被视为极端作弊
-                if (amplifier >= 117 || duration >= 2147483640) {
+                if (amplifier >= PotionEffectLimitManager.EXTREME_AMPLIFIER_THRESHOLD || 
+                    duration >= PotionEffectLimitManager.EXTREME_DURATION_THRESHOLD) {
                     hasExtremeEffect = true;
                     effectTypesToRemove.add(effect.getType());
                     plugin.getLogger().warning(String.format("检测到极端药水效果 %s 等级 %d 持续时间 %d，将被移除",
@@ -662,6 +673,92 @@ public class ItemFixer {
         if (needsFix) {
             plugin.getLogger().info("已清理无头活塞: " + type.name());
         }
+    }
+
+    /**
+     * 修正容器（如潜影盒、箱子等）中的内容
+     */
+    private void fixContainer(ItemStack item) {
+        if (!isContainer(item.getType())) {
+            return;
+        }
+        
+        if (!item.hasItemMeta() || !(item.getItemMeta() instanceof BlockStateMeta)) {
+            return;
+        }
+        
+        BlockStateMeta blockStateMeta = (BlockStateMeta) item.getItemMeta();
+        if (!blockStateMeta.hasBlockState()) {
+            return;
+        }
+        
+        BlockState blockState = blockStateMeta.getBlockState();
+        if (!(blockState instanceof InventoryHolder)) {
+            return;
+        }
+        
+        InventoryHolder holder = (InventoryHolder) blockState;
+        Inventory inventory = holder.getInventory();
+        
+        boolean changed = false;
+        for (int i = 0; i < inventory.getSize(); i++) {
+            ItemStack contentItem = inventory.getItem(i);
+            if (contentItem == null || contentItem.getType() == Material.AIR) continue;
+            
+            // 检查是否是违禁物品
+            if (isBannedItem(contentItem)) {
+                inventory.setItem(i, null);
+                changed = true;
+                plugin.getLogger().warning(String.format("从容器 %s 中移除违禁物品: %s", 
+                    item.getType().name(), contentItem.getType().name()));
+                continue;
+            }
+            
+            // 递归修复
+            ItemStack fixedContentItem = fixItem(contentItem);
+            
+            // 检查修复后是否仍然违规
+            if (isStillViolating(fixedContentItem)) {
+                inventory.setItem(i, null);
+                changed = true;
+                plugin.getLogger().warning(String.format("从容器 %s 中移除无法修复的违规物品: %s", 
+                    item.getType().name(), contentItem.getType().name()));
+                continue;
+            }
+            
+            if (!contentItem.equals(fixedContentItem)) {
+                inventory.setItem(i, fixedContentItem);
+                changed = true;
+            }
+        }
+        
+        if (changed) {
+            blockStateMeta.setBlockState(blockState);
+            item.setItemMeta(blockStateMeta);
+            plugin.getLogger().info("已修正容器内容: " + item.getType().name());
+        }
+    }
+    
+    /**
+     * 检查材质是否是容器
+     */
+    private boolean isContainer(Material material) {
+        String name = material.name();
+        return name.endsWith("SHULKER_BOX") || 
+               name.equals("CHEST") || 
+               name.equals("TRAPPED_CHEST") || 
+               name.equals("BARREL") || 
+               name.equals("DISPENSER") || 
+               name.equals("DROPPER") || 
+               name.equals("HOPPER") ||
+               name.equals("FURNACE") ||
+               name.equals("BLAST_FURNACE") ||
+               name.equals("SMOKER") ||
+               name.equals("BREWING_STAND") ||
+               name.equals("LECTERN") ||
+               name.equals("CHISELED_BOOKSHELF") ||
+               name.equals("JUKEBOX") ||
+               name.equals("CRAFTER");
     }
 
     /**
@@ -819,17 +916,8 @@ public class ItemFixer {
             return false;
         }
         
-        // 检查是否是违禁物品
-        if (isBannedItem(item)) {
-            return true;
-        }
-        
-        // 检查是否有自定义实体数据
-        if (hasCustomEntityData(item)) {
-            return true;
-        }
-        
-        return false;
+        // 使用 ItemChecker 检查是否仍有违规
+        return !itemChecker.checkItem(item).isEmpty();
     }
 
     /**
