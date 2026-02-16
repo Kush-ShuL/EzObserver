@@ -32,18 +32,17 @@ public class PlayerEffectListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH)
     public void onEntityPotionEffect(EntityPotionEffectEvent event) {
         // 只处理玩家
-        if (!(event.getEntity() instanceof Player)) {
+        if (!(event.getEntity() instanceof Player player)) {
             return;
         }
         
         // 只处理效果添加或升级的情况
         EntityPotionEffectEvent.Action action = event.getAction();
-        if (action != EntityPotionEffectEvent.Action.ADDED && 
+        if (action != EntityPotionEffectEvent.Action.ADDED &&
             action != EntityPotionEffectEvent.Action.CHANGED) {
             return;
         }
         
-        Player player = (Player) event.getEntity();
         PotionEffect newEffect = event.getNewEffect();
         
         if (newEffect == null) {

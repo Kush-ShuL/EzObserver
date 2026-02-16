@@ -27,22 +27,20 @@ public class WorldScanner {
     private final EzObserver plugin;
     private final ConfigManager configManager;
     private final ItemChecker itemChecker;
-    private final ItemFixer itemFixer;
     private final Logger logger;
     
     private boolean isScanning = false;
-    private AtomicInteger scannedPlayers = new AtomicInteger(0);
-    private AtomicInteger scannedOfflinePlayers = new AtomicInteger(0);
-    private AtomicInteger scannedContainers = new AtomicInteger(0);
-    private AtomicInteger violationsFound = new AtomicInteger(0);
-    private AtomicInteger itemsFixed = new AtomicInteger(0);
-    private AtomicInteger itemsDeleted = new AtomicInteger(0);
+    private final AtomicInteger scannedPlayers = new AtomicInteger(0);
+    private final AtomicInteger scannedOfflinePlayers = new AtomicInteger(0);
+    private final AtomicInteger scannedContainers = new AtomicInteger(0);
+    private final AtomicInteger violationsFound = new AtomicInteger(0);
+    private final AtomicInteger itemsFixed = new AtomicInteger(0);
+    private final AtomicInteger itemsDeleted = new AtomicInteger(0);
 
     public WorldScanner(EzObserver plugin) {
         this.plugin = plugin;
         this.configManager = plugin.getConfigManager();
         this.itemChecker = new ItemChecker(plugin);
-        this.itemFixer = new ItemFixer(plugin);
         this.logger = plugin.getLogger();
     }
 
@@ -82,12 +80,14 @@ public class WorldScanner {
         } catch (Exception e) {
             isScanning = false;
             logger.severe("扫描过程中发生错误: " + e.getMessage());
-            e.printStackTrace();
+            logger.severe("异常详情: " + e.getClass().getName() + ": " + e.getMessage());
             sendMessage(executor, messages.getScanError(e.getMessage()));
         }
     }
 
     private void sendMessage(Player player, Component component) {
+        //noinspection AutoCloseableResource
+        // BukkitAudiences由EzObserver主类管理，不需要在这里使用try-with-resources
         plugin.adventure().player(player).sendMessage(component);
     }
 
@@ -116,7 +116,7 @@ public class WorldScanner {
             
             // 扫描副手物品
             ItemStack offHand = inventory.getItemInOffHand();
-            if (offHand != null && offHand.getType() != Material.AIR) {
+            if (offHand.getType() != Material.AIR) {
                 scanSingleItem(offHand, player.getName() + " 副手");
             }
             
@@ -171,7 +171,7 @@ public class WorldScanner {
             }
 
             UUID uuid = offlinePlayer.getUniqueId();
-            File playerFile = new File(playerDataFolder, uuid.toString() + ".dat");
+            File playerFile = new File(playerDataFolder, uuid + ".dat");
             
             if (playerFile.exists()) {
                 scannedOfflinePlayers.incrementAndGet();

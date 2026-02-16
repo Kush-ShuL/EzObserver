@@ -19,9 +19,7 @@ import java.util.Map;
 public class MessageManager {
 
     private final EzObserver plugin;
-    private FileConfiguration messagesConfig;
-    private File messagesFile;
-    private Map<String, String> messages;
+    private final Map<String, String> messages;
     private final MiniMessage miniMessage;
 
     public MessageManager(EzObserver plugin) {
@@ -31,13 +29,13 @@ public class MessageManager {
     }
 
     public void loadMessages() {
-        messagesFile = new File(plugin.getDataFolder(), "messages.yml");
+        File messagesFile = new File(plugin.getDataFolder(), "messages.yml");
         
         if (!messagesFile.exists()) {
             plugin.saveResource("messages.yml", false);
         }
 
-        messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
+        FileConfiguration messagesConfig = YamlConfiguration.loadConfiguration(messagesFile);
 
         // 加载默认消息
         InputStream defaultStream = plugin.getResource("messages.yml");
@@ -118,16 +116,11 @@ public class MessageManager {
     }
 
     public Component getBroadcastMessage(String mode) {
-        switch (mode.toLowerCase()) {
-            case "delete":
-                return getMessage("broadcast-delete");
-            case "store":
-                return getMessage("broadcast-store");
-            case "fix":
-                return getMessage("broadcast-fix");
-            default:
-                return getMessage("broadcast-delete");
-        }
+        return switch (mode.toLowerCase()) {
+            case "delete", "default" -> getMessage("broadcast-delete");
+            case "store" -> getMessage("broadcast-store");
+            case "fix" -> getMessage("broadcast-fix");
+        };
     }
 
     public Component getScanAlreadyRunning() {

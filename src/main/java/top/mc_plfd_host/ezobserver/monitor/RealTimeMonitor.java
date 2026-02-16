@@ -19,8 +19,9 @@ public class RealTimeMonitor {
     private final ItemChecker itemChecker;
     private final Map<UUID, Integer> playerViolationCount = new ConcurrentHashMap<>();
     private final Map<UUID, List<String>> playerViolationHistory = new ConcurrentHashMap<>();
-    private boolean monitoringEnabled = true;
-    private int scanInterval = 20; // 每秒扫描一次
+    private volatile boolean monitoringEnabled = true;
+    private final Object monitoringLock = new Object();
+    private volatile int scanInterval = 20; // 每秒扫描一次
     
     public RealTimeMonitor(EzObserver plugin) {
         this.plugin = plugin;
@@ -41,24 +42,26 @@ public class RealTimeMonitor {
         // 使用Folia兼容的调度器
         if (FoliaUtil.isFolia()) {
             plugin.getServer().getGlobalRegionScheduler().runAtFixedRate(plugin, task -> {
-                if (!monitoringEnabled) {
-                    task.cancel();
-                    return;
+                synchronized (monitoringLock) {
+                    if (!monitoringEnabled) {
+                        task.cancel();
+                        return;
+                    }
                 }
                 
                 for (Player player : Bukkit.getOnlinePlayers()) {
                     if (player != null && player.isOnline()) {
                         // 使用EntityScheduler进行玩家相关操作
-                        player.getScheduler().run(plugin, playerTask -> {
-                            scanPlayerInventory(player);
-                        }, null);
+                        player.getScheduler().run(plugin, playerTask -> scanPlayerInventory(player), null);
                     }
                 }
             }, 20L, scanInterval);
         } else {
             // 兼容旧版本
             plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, () -> {
-                if (!monitoringEnabled) return;
+                synchronized (monitoringLock) {
+                    if (!monitoringEnabled) return;
+                }
                 
                 for (Player player : Bukkit.getOnlinePlayers()) {
                     scanPlayerInventory(player);
@@ -136,7 +139,11 @@ public class RealTimeMonitor {
     private void limitHistorySize(UUID playerId) {
         List<String> history = playerViolationHistory.get(playerId);
         if (history != null && history.size() > 100) {
-            history.subList(0, history.size() - 100).clear();
+            synchronized (history) {
+                if (history.size() > 100) {
+                    history.subList(0, history.size() - 100).clear();
+                }
+            }
         }
     }
     
@@ -157,23 +164,25 @@ public class RealTimeMonitor {
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalPlayers", playerViolationCount.size());
         stats.put("totalViolations", playerViolationCount.values().stream().mapToInt(Integer::intValue).sum());
-        stats.put("monitoringEnabled", monitoringEnabled);
+        synchronized (monitoringLock) {
+            stats.put("monitoringEnabled", monitoringEnabled);
+        }
         return stats;
     }
     
     /**
-     * 切换监控状态
+     * 停止监控
      */
-    public void toggleMonitoring() {
-        monitoringEnabled = !monitoringEnabled;
-    }
-    
-    /**
-     * 重置玩家数据
-     */
-    public void resetPlayerData(UUID playerId) {
-        playerViolationCount.remove(playerId);
-        playerViolationHistory.remove(playerId);
+    public void stopMonitoring() {
+        synchronized (monitoringLock) {
+            monitoringEnabled = false;
+        }
+        
+        // 清理数据
+        playerViolationCount.clear();
+        playerViolationHistory.clear();
+        
+        plugin.getLogger().info("实时监控已停止");
     }
     
     /**

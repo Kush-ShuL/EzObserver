@@ -49,7 +49,7 @@ tasks.withType(JavaCompile).configureEach {
 processResources {
     def props = [project: [version: version]]
     inputs.properties props
-    filteringCharset 'UTF-8'
+    filteringCharset = 'UTF-8'
     filesMatching('plugin.yml') {
         expand props
     }
@@ -67,6 +67,7 @@ jar {
 shadowJar {
     archiveClassifier.set('')
     relocate 'net.kyori', 'top.mc_plfd_host.ezobserver.libs.kyori'
+    minimize()
 }
 
 build.dependsOn shadowJar

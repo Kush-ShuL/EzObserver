@@ -50,7 +50,7 @@ public class ItemFixer {
     }
 
     public ItemStack fixItem(ItemStack item) {
-        if (item == null) {
+        if (item == null || item.getType() == Material.AIR) {
             return item;
         }
 
@@ -351,13 +351,11 @@ public class ItemFixer {
 
         // 计算总属性修饰符数量
         int totalCount = 0;
-        List<AttributeModifier> allModifiers = new ArrayList<>();
         
         for (Attribute attribute : Attribute.values()) {
             Collection<AttributeModifier> modifiers = meta.getAttributeModifiers(attribute);
             if (modifiers != null && !modifiers.isEmpty()) {
                 totalCount += modifiers.size();
-                allModifiers.addAll(modifiers);
             }
         }
 
@@ -433,9 +431,8 @@ public class ItemFixer {
             reasons.add("属性修饰符");
         }
         
-        // 4. 检查并清理SpawnEggMeta中的自定义数据
-        if (meta instanceof SpawnEggMeta) {
-            SpawnEggMeta spawnEggMeta = (SpawnEggMeta) meta;
+        // 4. 检查并清理SpawnEggMeta中的自定义数据 - 使用Java 16+模式匹配
+        if (meta instanceof SpawnEggMeta spawnEggMeta) {
             
             // 获取预期的实体类型
             String expectedEntityType = getExpectedEntityType(item.getType());
@@ -474,7 +471,8 @@ public class ItemFixer {
         }
         
         // 5. 检查持久数据容器是否有自定义数据
-        if (meta.getPersistentDataContainer() != null && !meta.getPersistentDataContainer().isEmpty()) {
+        // getPersistentDataContainer()永远不会返回null，所以不需要null检查
+        if (!meta.getPersistentDataContainer().isEmpty()) {
             needsFix = true;
             reasons.add("自定义NBT数据");
         }
@@ -485,21 +483,6 @@ public class ItemFixer {
             
             // 清理方法：创建一个新的相同类型的刷怪蛋，只保留基本属性
             ItemStack cleanEgg = new ItemStack(item.getType(), item.getAmount());
-            
-            // 注意：不保留显示名称和Lore，因为作弊物品可能有误导性的名称
-            // 如果需要保留，可以取消下面的注释
-            /*
-            ItemMeta cleanMeta = cleanEgg.getItemMeta();
-            if (cleanMeta != null) {
-                if (meta.hasDisplayName()) {
-                    cleanMeta.setDisplayName(meta.getDisplayName());
-                }
-                if (meta.hasLore()) {
-                    cleanMeta.setLore(meta.getLore());
-                }
-                cleanEgg.setItemMeta(cleanMeta);
-            }
-            */
             
             // 将原物品替换为干净的版本
             item.setType(cleanEgg.getType());
@@ -542,11 +525,10 @@ public class ItemFixer {
             return;
         }
         
-        if (!item.hasItemMeta() || !(item.getItemMeta() instanceof PotionMeta)) {
+        // 使用Java 16+模式匹配
+        if (!(item.getItemMeta() instanceof PotionMeta potionMeta)) {
             return;
         }
-        
-        PotionMeta potionMeta = (PotionMeta) item.getItemMeta();
         boolean metaChanged = false;
         boolean hasExtremeEffect = false;
         
@@ -608,11 +590,10 @@ public class ItemFixer {
             return;
         }
         
-        if (!item.hasItemMeta() || !(item.getItemMeta() instanceof FireworkMeta)) {
+        // 使用Java 16+模式匹配
+        if (!(item.getItemMeta() instanceof FireworkMeta fireworkMeta)) {
             return;
         }
-        
-        FireworkMeta fireworkMeta = (FireworkMeta) item.getItemMeta();
         int power = fireworkMeta.getPower();
         
         // 正常飞行时间为 1-3（power 0-2 对应飞行时间 1-3）
@@ -683,21 +664,16 @@ public class ItemFixer {
             return;
         }
         
-        if (!item.hasItemMeta() || !(item.getItemMeta() instanceof BlockStateMeta)) {
+        // 使用Java 16+模式匹配
+        if (!(item.getItemMeta() instanceof BlockStateMeta blockStateMeta) || !blockStateMeta.hasBlockState()) {
             return;
         }
         
-        BlockStateMeta blockStateMeta = (BlockStateMeta) item.getItemMeta();
-        if (!blockStateMeta.hasBlockState()) {
+        // 使用Java 16+模式匹配
+        if (!(blockStateMeta.getBlockState() instanceof InventoryHolder holder)) {
             return;
         }
         
-        BlockState blockState = blockStateMeta.getBlockState();
-        if (!(blockState instanceof InventoryHolder)) {
-            return;
-        }
-        
-        InventoryHolder holder = (InventoryHolder) blockState;
         Inventory inventory = holder.getInventory();
         
         boolean changed = false;
@@ -783,17 +759,16 @@ public class ItemFixer {
         
         ItemMeta meta = item.getItemMeta();
         
-        // 检查是否是 BundleMeta（1.21.4+）
-        if (!(meta instanceof BundleMeta)) {
+        // 检查是否是 BundleMeta（1.21.4+）- 使用Java 16+模式匹配
+        if (!(meta instanceof BundleMeta bundleMeta)) {
             return;
         }
         
-        BundleMeta bundleMeta = (BundleMeta) meta;
-        
         // 获取收纳袋中的物品
+        // getItems()永远不会返回null，所以不需要null检查
         List<ItemStack> contents = bundleMeta.getItems();
         
-        if (contents == null || contents.isEmpty()) {
+        if (contents.isEmpty()) {
             return;
         }
         
@@ -888,7 +863,8 @@ public class ItemFixer {
             type == Material.ARMOR_STAND) {
             
             // 检查持久数据容器
-            if (meta.getPersistentDataContainer() != null && !meta.getPersistentDataContainer().isEmpty()) {
+            // getPersistentDataContainer()永远不会返回null，所以不需要null检查
+            if (!meta.getPersistentDataContainer().isEmpty()) {
                 return true;
             }
             
@@ -935,75 +911,48 @@ public class ItemFixer {
         String reason = "";
         Material replacementType = null;
         
-        // 检查空成书 - 替换为书与笔
-        if (type == Material.WRITTEN_BOOK) {
-            if (meta instanceof BookMeta) {
-                BookMeta bookMeta = (BookMeta) meta;
-                
-                // 成书应该有页面内容
-                if (bookMeta.getPageCount() == 0 || !bookMeta.hasAuthor() || !bookMeta.hasTitle()) {
-                    needsFix = true;
-                    reason = "空成书（没有页面内容或缺少作者/标题）";
-                    replacementType = Material.WRITABLE_BOOK; // 替换为书与笔
-                }
-            } else {
-                // 如果不是BookMeta，也视为空成书
+        // 检查空成书 - 替换为书与笔 - 使用Java 16+模式匹配
+        if (type == Material.WRITTEN_BOOK && meta instanceof BookMeta bookMeta) {
+            // 成书应该有页面内容
+            if (bookMeta.getPageCount() == 0 || !bookMeta.hasAuthor() || !bookMeta.hasTitle()) {
                 needsFix = true;
-                reason = "空成书（元数据类型不正确）";
-                replacementType = Material.WRITABLE_BOOK;
+                reason = "空成书（没有页面内容或缺少作者/标题）";
+                replacementType = Material.WRITABLE_BOOK; // 替换为书与笔
             }
         }
         
-        // 检查空附魔书 - 替换为普通书
-        if (type == Material.ENCHANTED_BOOK) {
-            if (meta instanceof EnchantmentStorageMeta) {
-                EnchantmentStorageMeta enchantMeta = (EnchantmentStorageMeta) meta;
-                
-                // 附魔书应该有存储的附魔
-                if (!enchantMeta.hasStoredEnchants() || enchantMeta.getStoredEnchants().isEmpty()) {
-                    needsFix = true;
-                    reason = "空附魔书（没有存储的附魔）";
-                    replacementType = Material.BOOK; // 替换为普通书
-                }
-            } else {
-                // 如果不是EnchantmentStorageMeta，也视为空附魔书
+        // 检查空附魔书 - 替换为普通书 - 使用Java 16+模式匹配
+        if (type == Material.ENCHANTED_BOOK && meta instanceof EnchantmentStorageMeta enchantMeta) {
+            // 附魔书应该有存储的附魔
+            if (!enchantMeta.hasStoredEnchants() || enchantMeta.getStoredEnchants().isEmpty()) {
                 needsFix = true;
-                reason = "空附魔书（元数据类型不正确）";
-                replacementType = Material.BOOK;
+                reason = "空附魔书（没有存储的附魔）";
+                replacementType = Material.BOOK; // 替换为普通书
             }
         }
         
-        // 检查空地图 - 替换为空白地图
-        if (type == Material.FILLED_MAP) {
-            if (meta instanceof MapMeta) {
-                MapMeta mapMeta = (MapMeta) meta;
-                
-                // 检查是否有地图视图
+        // 检查空地图 - 替换为空白地图 - 使用Java 16+模式匹配
+        if (type == Material.FILLED_MAP && meta instanceof MapMeta mapMeta) {
+            // 检查是否有地图视图
+            try {
+                if (!mapMeta.hasMapView()) {
+                    needsFix = true;
+                    reason = "空地图（没有地图数据）";
+                    replacementType = Material.MAP; // 替换为空白地图
+                }
+            } catch (Exception e) {
+                // 如果方法不存在，使用备用检查
                 try {
-                    if (!mapMeta.hasMapView()) {
+                    java.lang.reflect.Method hasMapIdMethod = mapMeta.getClass().getMethod("hasMapId");
+                    Boolean hasMapId = (Boolean) hasMapIdMethod.invoke(mapMeta);
+                    if (!hasMapId) {
                         needsFix = true;
-                        reason = "空地图（没有地图数据）";
-                        replacementType = Material.MAP; // 替换为空白地图
+                        reason = "空地图（没有地图ID）";
+                        replacementType = Material.MAP;
                     }
-                } catch (Exception e) {
-                    // 如果方法不存在，使用备用检查
-                    try {
-                        java.lang.reflect.Method hasMapIdMethod = mapMeta.getClass().getMethod("hasMapId");
-                        Boolean hasMapId = (Boolean) hasMapIdMethod.invoke(mapMeta);
-                        if (!hasMapId) {
-                            needsFix = true;
-                            reason = "空地图（没有地图ID）";
-                            replacementType = Material.MAP;
-                        }
-                    } catch (Exception ex) {
-                        // 忽略
-                    }
+                } catch (Exception ex) {
+                    // 忽略
                 }
-            } else {
-                // 如果不是MapMeta，也视为空地图
-                needsFix = true;
-                reason = "空地图（元数据类型不正确）";
-                replacementType = Material.MAP;
             }
         }
         
@@ -1026,7 +975,8 @@ public class ItemFixer {
         }
         
         // 如果需要修复，创建新物品替换
-        if (needsFix && replacementType != null) {
+        // replacementType在needsFix为true时已经被赋值，所以不需要null检查
+        if (needsFix) {
             plugin.getLogger().warning("检测到空数据物品: " + reason);
             
             // 创建新的替换物品

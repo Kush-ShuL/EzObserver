@@ -14,17 +14,18 @@ import java.util.*;
  * 
  * @author Kush_ShuL
  */
+@SuppressWarnings("FieldCanBeLocal")
 public class EnchantmentConflictManager {
     
+    // configManager字段在构造函数中初始化后不再修改，但保留为实例字段以便未来扩展
     private final ConfigManager configManager;
     private boolean conflictDetectionEnabled = true;
     
     // 附魔冲突矩阵 - 存储每个物品类型的冲突关系
-    private final Map<Material, Map<String, Set<String>>> conflictMatrix;
+    private final Map<Material, Map<String, Set<String>>> conflictMatrix = new HashMap<>();
     
     public EnchantmentConflictManager(ConfigManager configManager) {
         this.configManager = configManager;
-        this.conflictMatrix = new HashMap<>();
         initializeConflictMatrix();
     }
     
@@ -32,26 +33,27 @@ public class EnchantmentConflictManager {
      * 初始化冲突矩阵
      */
     private void initializeConflictMatrix() {
+        
         // 剑类物品的冲突
-        addSwordConflicts();
+        addSwordConflicts(conflictMatrix);
         
         // 斧类物品的冲突
-        addAxeConflicts();
+        addAxeConflicts(conflictMatrix);
         
         // 镐、锹类物品的冲突
-        addToolConflicts();
+        addToolConflicts(conflictMatrix);
         
         // 弓的冲突
-        addBowConflicts();
+        addBowConflicts(conflictMatrix);
         
         // 三叉戟的冲突
-        addTridentConflicts();
+        addTridentConflicts(conflictMatrix);
         
         // 弩的冲突
-        addCrossbowConflicts();
+        addCrossbowConflicts(conflictMatrix);
         
         // 盔甲类物品的冲突
-        addArmorConflicts();
+        addArmorConflicts(conflictMatrix);
     }
     
     /**
@@ -61,7 +63,7 @@ public class EnchantmentConflictManager {
      * - 节肢杀手与亡灵杀手、锋利互相冲突
      * - 锋利与亡灵杀手、节肢杀手互相冲突
      */
-    private void addSwordConflicts() {
+    private void addSwordConflicts(Map<Material, Map<String, Set<String>>> conflictMatrix) {
         Set<Material> swords = new HashSet<>(Arrays.asList(
             Material.WOODEN_SWORD, Material.STONE_SWORD, Material.IRON_SWORD,
             Material.GOLDEN_SWORD, Material.DIAMOND_SWORD, Material.NETHERITE_SWORD
@@ -85,7 +87,7 @@ public class EnchantmentConflictManager {
      * - 节肢杀手与亡灵杀手、锋利互相冲突
      * - 锋利与亡灵杀手、节肢杀手互相冲突
      */
-    private void addAxeConflicts() {
+    private void addAxeConflicts(Map<Material, Map<String, Set<String>>> conflictMatrix) {
         Set<Material> axes = new HashSet<>(Arrays.asList(
             Material.WOODEN_AXE, Material.STONE_AXE, Material.IRON_AXE,
             Material.GOLDEN_AXE, Material.DIAMOND_AXE, Material.NETHERITE_AXE
@@ -110,7 +112,7 @@ public class EnchantmentConflictManager {
      * 根据用户提供的冲突表：
      * - 时运与精准采集冲突
      */
-    private void addToolConflicts() {
+    private void addToolConflicts(Map<Material, Map<String, Set<String>>> conflictMatrix) {
         Set<Material> pickaxes = new HashSet<>(Arrays.asList(
             Material.WOODEN_PICKAXE, Material.STONE_PICKAXE, Material.IRON_PICKAXE,
             Material.GOLDEN_PICKAXE, Material.DIAMOND_PICKAXE, Material.NETHERITE_PICKAXE
@@ -145,7 +147,7 @@ public class EnchantmentConflictManager {
      * 根据用户提供的冲突表：
      * - 无限与经验修补冲突
      */
-    private void addBowConflicts() {
+    private void addBowConflicts(Map<Material, Map<String, Set<String>>> conflictMatrix) {
         Map<String, Set<String>> conflicts = conflictMatrix.computeIfAbsent(Material.BOW, k -> new HashMap<>());
         
         // 无限与经验修补冲突
@@ -159,7 +161,7 @@ public class EnchantmentConflictManager {
      * - 引雷与激流冲突
      * - 忠诚与激流冲突
      */
-    private void addTridentConflicts() {
+    private void addTridentConflicts(Map<Material, Map<String, Set<String>>> conflictMatrix) {
         Map<String, Set<String>> conflicts = conflictMatrix.computeIfAbsent(Material.TRIDENT, k -> new HashMap<>());
         
         // 引雷与激流冲突
@@ -177,7 +179,7 @@ public class EnchantmentConflictManager {
      * 根据用户提供的冲突表：
      * - 多重射击与穿透冲突
      */
-    private void addCrossbowConflicts() {
+    private void addCrossbowConflicts(Map<Material, Map<String, Set<String>>> conflictMatrix) {
         Map<String, Set<String>> conflicts = conflictMatrix.computeIfAbsent(Material.CROSSBOW, k -> new HashMap<>());
 
         // 多重射击与穿透冲突
@@ -188,7 +190,7 @@ public class EnchantmentConflictManager {
     /**
      * 添加盔甲类冲突
      */
-    private void addArmorConflicts() {
+    private void addArmorConflicts(Map<Material, Map<String, Set<String>>> conflictMatrix) {
         // 头盔类（包括海龟壳）
         Set<Material> helmets = new HashSet<>(Arrays.asList(
             Material.LEATHER_HELMET, Material.CHAINMAIL_HELMET, Material.IRON_HELMET,
@@ -203,7 +205,7 @@ public class EnchantmentConflictManager {
         }
         
         for (Material helmet : helmets) {
-            addHelmetConflicts(helmet);
+            addHelmetConflicts(helmet, conflictMatrix);
         }
         
         // 胸甲类
@@ -213,7 +215,7 @@ public class EnchantmentConflictManager {
         ));
         
         for (Material chestplate : chestplates) {
-            addChestplateLeggingsConflicts(chestplate);
+            addChestplateLeggingsConflicts(chestplate, conflictMatrix);
         }
         
         // 护腿类
@@ -223,7 +225,7 @@ public class EnchantmentConflictManager {
         ));
         
         for (Material leg : leggings) {
-            addChestplateLeggingsConflicts(leg);
+            addChestplateLeggingsConflicts(leg, conflictMatrix);
         }
         
         // 靴子类
@@ -233,7 +235,7 @@ public class EnchantmentConflictManager {
         ));
         
         for (Material boot : boots) {
-            addBootsConflicts(boot);
+            addBootsConflicts(boot, conflictMatrix);
         }
     }
     
@@ -242,7 +244,7 @@ public class EnchantmentConflictManager {
      * 根据用户提供的冲突表：
      * - 保护与弹射物保护、火焰保护、爆炸保护互相冲突
      */
-    private void addHelmetConflicts(Material helmet) {
+    private void addHelmetConflicts(Material helmet, Map<Material, Map<String, Set<String>>> conflictMatrix) {
         Map<String, Set<String>> conflicts = conflictMatrix.computeIfAbsent(helmet, k -> new HashMap<>());
         
         // 保护类型附魔互相冲突
@@ -265,7 +267,7 @@ public class EnchantmentConflictManager {
      * 根据用户提供的冲突表：
      * - 保护与弹射物保护、火焰保护、爆炸保护互相冲突
      */
-    private void addChestplateLeggingsConflicts(Material armorPiece) {
+    private void addChestplateLeggingsConflicts(Material armorPiece, Map<Material, Map<String, Set<String>>> conflictMatrix) {
         Map<String, Set<String>> conflicts = conflictMatrix.computeIfAbsent(armorPiece, k -> new HashMap<>());
         
         // 保护类型附魔互相冲突
@@ -289,7 +291,7 @@ public class EnchantmentConflictManager {
      * - 保护与弹射物保护、火焰保护、爆炸保护互相冲突
      * - 深海探索者与冰霜行者冲突
      */
-    private void addBootsConflicts(Material boot) {
+    private void addBootsConflicts(Material boot, Map<Material, Map<String, Set<String>>> conflictMatrix) {
         Map<String, Set<String>> conflicts = conflictMatrix.computeIfAbsent(boot, k -> new HashMap<>());
         
         // 保护类型附魔互相冲突

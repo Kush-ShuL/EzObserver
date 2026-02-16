@@ -25,7 +25,6 @@ public class EzObserver extends JavaPlugin {
     private PotionEffectLimitManager potionEffectLimitManager;
     private MessageManager messageManager;
     private WorldScanner worldScanner;
-    private PlayerEffectListener playerEffectListener;
     private WhitelistManager whitelistManager;
     private PermissionManager permissionManager;
     private RealTimeMonitor realTimeMonitor;
@@ -73,7 +72,7 @@ public class EzObserver extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new ItemMoveListener(this), this);
         
         // Register player effect listener (only triggers on effect updates for high performance)
-        playerEffectListener = new PlayerEffectListener(this);
+        PlayerEffectListener playerEffectListener = new PlayerEffectListener(this);
         getServer().getPluginManager().registerEvents(playerEffectListener, this);
         
         // Register command
@@ -105,17 +104,53 @@ public class EzObserver extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        if (this.adventure != null) {
-            this.adventure.close();
-            this.adventure = null;
+        try {
+            // 清理实时监控器
+            if (realTimeMonitor != null) {
+                try {
+                    realTimeMonitor.stopMonitoring();
+                } catch (Exception e) {
+                    getLogger().warning("停止实时监控器时发生错误: " + e.getMessage());
+                }
+            }
+            
+            // 清理权限管理器资源
+            if (permissionManager != null) {
+                try {
+                    permissionManager.cleanupOfflinePlayers();
+                } catch (Exception e) {
+                    getLogger().warning("清理权限管理器时发生错误: " + e.getMessage());
+                }
+            }
+            
+            // 清理报告管理器
+            // 报告管理器无需特殊清理
+            
+            // 清理世界扫描器
+            // 世界扫描器无需特殊清理
+            
+            // 清理白名单管理器
+            // 白名单管理器无需特殊清理
+            
+            // 清理Adventure资源
+            if (this.adventure != null) {
+                try {
+                    this.adventure.close();
+                } catch (Exception e) {
+                    getLogger().warning("关闭Adventure时发生错误: " + e.getMessage());
+                } finally {
+                    this.adventure = null;
+                }
+            }
+            
+            // 清理静态引用以防止内存泄漏
+            instance = null;
+            
+            getLogger().info("EzObserver disabled successfully");
+        } catch (Exception e) {
+            getLogger().severe("插件禁用时发生严重错误: " + e.getMessage());
+            getLogger().severe("异常详情: " + e.getClass().getName() + ": " + e.getMessage());
         }
-        
-        // 清理资源
-        if (permissionManager != null) {
-            permissionManager.cleanupOfflinePlayers();
-        }
-        
-        getLogger().info("EzObserver disabled");
     }
 
     public BukkitAudiences adventure() {

@@ -14,6 +14,8 @@ public class ReportManager {
     
     private final EzObserver plugin;
     private final RealTimeMonitor realTimeMonitor;
+    // reports集合用于缓存报告，虽然主要操作是添加，但保留以便未来扩展查询功能
+    //noinspection MismatchedCollectionQueryUpdate
     private final Map<String, Report> reports = new ConcurrentHashMap<>();
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
     private final File reportsDir;
@@ -23,7 +25,9 @@ public class ReportManager {
         this.realTimeMonitor = realTimeMonitor;
         this.reportsDir = new File(plugin.getDataFolder(), "reports");
         if (!reportsDir.exists()) {
-            reportsDir.mkdirs();
+            if (!reportsDir.mkdirs()) {
+                plugin.getLogger().warning("无法创建报告目录: " + reportsDir.getAbsolutePath());
+            }
         }
     }
     
@@ -166,7 +170,7 @@ public class ReportManager {
             }
         }
         
-        Collections.sort(reportList, Collections.reverseOrder());
+        reportList.sort(Collections.reverseOrder());
         return reportList;
     }
     

@@ -1,6 +1,7 @@
 package top.mc_plfd_host.ezobserver.command;
 
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.platform.bukkit.BukkitAudiences;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -11,6 +12,7 @@ import top.mc_plfd_host.ezobserver.EzObserver;
 import top.mc_plfd_host.ezobserver.checker.ItemChecker;
 import top.mc_plfd_host.ezobserver.config.MessageManager;
 
+import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -28,7 +30,7 @@ public class EzObserverCommand implements CommandExecutor, TabCompleter {
     }
 
     @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+    public boolean onCommand(@Nonnull CommandSender sender, @Nonnull Command command, @Nonnull String label, @Nonnull String[] args) {
         MessageManager messages = plugin.getMessageManager();
         
         if (!sender.hasPermission("ezobserver.admin")) {
@@ -78,7 +80,9 @@ public class EzObserverCommand implements CommandExecutor, TabCompleter {
     }
 
     private void sendMessage(CommandSender sender, Component component) {
-        plugin.adventure().sender(sender).sendMessage(component);
+        try (BukkitAudiences adventure = plugin.adventure()) {
+            adventure.sender(sender).sendMessage(component);
+        }
     }
 
     private void sendHelp(CommandSender sender) {
@@ -126,7 +130,7 @@ public class EzObserverCommand implements CommandExecutor, TabCompleter {
         MessageManager messages = plugin.getMessageManager();
         ItemStack item = player.getInventory().getItemInMainHand();
         
-        if (item == null || item.getType().isAir()) {
+        if (item.getType().isAir()) {
             sendMessage(player, messages.getPrefix().append(messages.getMessage("check-no-item")));
             return;
         }
@@ -190,7 +194,7 @@ public class EzObserverCommand implements CommandExecutor, TabCompleter {
         MessageManager messages = plugin.getMessageManager();
         ItemStack item = player.getInventory().getItemInMainHand();
         
-        if (item == null || item.getType().isAir()) {
+        if (item.getType().isAir()) {
             sendMessage(player, messages.getMessage("whitelist-no-item"));
             return;
         }
@@ -203,7 +207,7 @@ public class EzObserverCommand implements CommandExecutor, TabCompleter {
         MessageManager messages = plugin.getMessageManager();
         ItemStack item = player.getInventory().getItemInMainHand();
         
-        if (item == null || item.getType().isAir()) {
+        if (item.getType().isAir()) {
             sendMessage(player, messages.getMessage("whitelist-no-item"));
             return;
         }
@@ -230,7 +234,7 @@ public class EzObserverCommand implements CommandExecutor, TabCompleter {
     }
     
     @Override
-    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
+    public List<String> onTabComplete(@Nonnull CommandSender sender, @Nonnull Command command, @Nonnull String alias, @Nonnull String[] args) {
         List<String> completions = new ArrayList<>();
         
         if (args.length == 1) {

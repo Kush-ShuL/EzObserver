@@ -336,23 +336,20 @@ public class ItemMoveListener implements Listener {
         ItemStack mainHand = event.getMainHandItem();
         ItemStack offHand = event.getOffHandItem();
         
-        if (mainHand != null) {
-            List<String> violations = itemChecker.checkItem(mainHand);
-            if (!violations.isEmpty()) {
-                handleViolation(event.getPlayer(), mainHand, violations);
-                handleConfiscation(event, mainHand, event.getPlayer());
-                event.setCancelled(true);
-                return;
-            }
+        // getMainHandItem()和getOffHandItem()永远不会返回null，所以不需要null检查
+        List<String> mainHandViolations = itemChecker.checkItem(mainHand);
+        if (!mainHandViolations.isEmpty()) {
+            handleViolation(event.getPlayer(), mainHand, mainHandViolations);
+            handleConfiscation(event, mainHand, event.getPlayer());
+            event.setCancelled(true);
+            return;
         }
         
-        if (offHand != null) {
-            List<String> violations = itemChecker.checkItem(offHand);
-            if (!violations.isEmpty()) {
-                handleViolation(event.getPlayer(), offHand, violations);
-                handleConfiscation(event, offHand, event.getPlayer());
-                event.setCancelled(true);
-            }
+        List<String> offHandViolations = itemChecker.checkItem(offHand);
+        if (!offHandViolations.isEmpty()) {
+            handleViolation(event.getPlayer(), offHand, offHandViolations);
+            handleConfiscation(event, offHand, event.getPlayer());
+            event.setCancelled(true);
         }
     }
     
@@ -493,7 +490,7 @@ public class ItemMoveListener implements Listener {
                 }
             } catch (Exception e) {
                 logger.severe("处理违规物品时发生错误: " + e.getMessage());
-                e.printStackTrace();
+                logger.severe("异常详情: " + e.getClass().getName() + ": " + e.getMessage());
             }
         });
     }
@@ -502,7 +499,10 @@ public class ItemMoveListener implements Listener {
         try {
             File storageDir = new File(configManager.getConfiscateStoragePath());
             if (!storageDir.exists()) {
-                storageDir.mkdirs();
+                boolean created = storageDir.mkdirs();
+                if (!created) {
+                    logger.warning("无法创建存储目录: " + storageDir.getAbsolutePath());
+                }
             }
 
             String timestamp = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date());
@@ -526,7 +526,10 @@ public class ItemMoveListener implements Listener {
         try {
             File logFile = new File(plugin.getDataFolder(), "violations.log");
             if (!logFile.exists()) {
-                logFile.createNewFile();
+                boolean created = logFile.createNewFile();
+                if (!created) {
+                    logger.warning("无法创建违规日志文件: " + logFile.getAbsolutePath());
+                }
             }
             
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
@@ -535,7 +538,7 @@ public class ItemMoveListener implements Listener {
             String logEntry = String.format("[%s] 玩家: %s, 物品: %s, 违规原因: %s%n",
                 timestamp, player != null ? player.getName() : "未知", item.getType().name(), String.join(", ", violations));
             
-            Files.write(logFile.toPath(), logEntry.getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
+            Files.writeString(logFile.toPath(), logEntry, StandardCharsets.UTF_8, StandardOpenOption.APPEND);
             
         } catch (IOException e) {
             logger.severe("写入违规日志时发生错误: " + e.getMessage());

@@ -126,7 +126,7 @@ public class WhitelistManager {
      * 生成物品的唯一标识符
      */
     private String getItemKey(ItemStack item) {
-        if (item == null || item.getType() == null) {
+        if (item == null) {
             return null;
         }
         

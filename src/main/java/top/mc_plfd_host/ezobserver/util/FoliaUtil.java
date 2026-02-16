@@ -14,9 +14,9 @@ import java.lang.reflect.Method;
  */
 public class FoliaUtil {
     
-    private static Boolean isFolia = null;
-    private static Method getSchedulerMethod = null;
-    private static Method runMethod = null;
+    private static volatile Boolean isFolia = null;
+    private static volatile Method getSchedulerMethod = null;
+    private static volatile Method runMethod = null;
     
     /**
      * 检测当前服务器是否是 Folia
@@ -24,12 +24,16 @@ public class FoliaUtil {
      */
     public static boolean isFolia() {
         if (isFolia == null) {
-            try {
-                // Folia 特有的类
-                Class.forName("io.papermc.paper.threadedregions.RegionizedServer");
-                isFolia = true;
-            } catch (ClassNotFoundException e) {
-                isFolia = false;
+            synchronized (FoliaUtil.class) {
+                if (isFolia == null) {
+                    try {
+                        // Folia 特有的类
+                        Class.forName("io.papermc.paper.threadedregions.RegionizedServer");
+                        isFolia = true;
+                    } catch (ClassNotFoundException e) {
+                        isFolia = false;
+                    }
+                }
             }
         }
         return isFolia;
@@ -38,28 +42,42 @@ public class FoliaUtil {
     /**
      * 在实体的区域调度器上执行任务
      * 如果不是 Folia，则使用 Bukkit 调度器
-     * 
+     *
      * @param plugin 插件实例
      * @param entity 实体
      * @param task 要执行的任务
      */
     public static void runEntityTask(Plugin plugin, Entity entity, Runnable task) {
+        if (entity == null || task == null) {
+            return;
+        }
+        
         if (isFolia()) {
             try {
                 // 使用反射调用 Folia 的 entity.getScheduler().run()
-                if (getSchedulerMethod == null) {
-                    getSchedulerMethod = entity.getClass().getMethod("getScheduler");
-                }
-                Object scheduler = getSchedulerMethod.invoke(entity);
+                Method localGetSchedulerMethod;
+                Method localRunMethod;
                 
-                if (runMethod == null) {
-                    // Folia 的 EntityScheduler.run(Plugin, Consumer<ScheduledTask>, Runnable)
-                    runMethod = scheduler.getClass().getMethod("run", Plugin.class, 
-                        java.util.function.Consumer.class, Runnable.class);
+                synchronized (FoliaUtil.class) {
+                    if (getSchedulerMethod == null) {
+                        getSchedulerMethod = entity.getClass().getMethod("getScheduler");
+                    }
+                    localGetSchedulerMethod = getSchedulerMethod;
+                }
+                
+                Object scheduler = localGetSchedulerMethod.invoke(entity);
+                
+                synchronized (FoliaUtil.class) {
+                    if (runMethod == null) {
+                        // Folia 的 EntityScheduler.run(Plugin, Consumer<ScheduledTask>, Runnable)
+                        runMethod = scheduler.getClass().getMethod("run", Plugin.class,
+                            java.util.function.Consumer.class, Runnable.class);
+                    }
+                    localRunMethod = runMethod;
                 }
                 
                 // 执行任务
-                runMethod.invoke(scheduler, plugin, (java.util.function.Consumer<Object>) (t) -> task.run(), null);
+                localRunMethod.invoke(scheduler, plugin, (java.util.function.Consumer<Object>) (t) -> task.run(), null);
             } catch (Exception e) {
                 // 如果反射失败，回退到同步执行
                 plugin.getLogger().warning("Folia 调度器调用失败，回退到同步执行: " + e.getMessage());

@@ -11,9 +11,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+@SuppressWarnings("FieldCanBeLocal")
 public class ConfigManager {
 
     private final EzObserver plugin;
+    // config字段需要在多个方法中使用，保持为实例字段
     private FileConfiguration config;
     
     // 配置选项
@@ -31,8 +33,8 @@ public class ConfigManager {
     private boolean useVanillaMaxForUnconfigured;
     private double unconfiguredEnchantmentMultiplier;
     private int maxAttributeModifierAmount;
-    private Map<String, Integer> enchantmentLimits;
-    private Map<String, Double> attributeLimits;
+    private final Map<String, Integer> enchantmentLimits;
+    private final Map<String, Double> attributeLimits;
     
     // 修正模式设置
     private boolean removeOverLimitEnchantments;
@@ -44,10 +46,10 @@ public class ConfigManager {
     // 自定义禁止物品设置
     private boolean bannedItemsEnabled;
     private String bannedItemsActionMode;
-    private List<String> bannedNameKeywords;
-    private List<String> bannedLoreKeywords;
-    private Set<Material> bannedMaterials;
-    private Set<Material> bannedSpawnEggs;
+    private final List<String> bannedNameKeywords;
+    private final List<String> bannedLoreKeywords;
+    private final Set<Material> bannedMaterials;
+    private final Set<Material> bannedSpawnEggs;
     
     // OP物品检测设置
     private boolean opItemsEnabled;
@@ -60,12 +62,12 @@ public class ConfigManager {
     private boolean potionCheckEnabled;
     private int maxPotionDuration;
     private int maxPotionAmplifier;
-    private Set<String> bannedPotionEffects;
-    private Map<String, Integer> potionEffectLimits;
-    private Map<String, Integer> potionDurationLimits;
+    private final Set<String> bannedPotionEffects;
+    private final Map<String, Integer> potionEffectLimits;
+    private final Map<String, Integer> potionDurationLimits;
     
     // 白名单管理器
-    private WhitelistManager whitelistManager;
+    private final WhitelistManager whitelistManager;
     
     // 高级功能配置
     private boolean realTimeMonitoringEnabled;
@@ -76,6 +78,9 @@ public class ConfigManager {
     private boolean reportGenerationEnabled;
     private long reportRetentionDays;
     private boolean permissionBypassEnabled;
+    
+    // 线程安全锁对象
+    private final Object configLock = new Object();
 
     public ConfigManager(EzObserver plugin) {
         this.plugin = plugin;
@@ -92,112 +97,157 @@ public class ConfigManager {
     }
 
     public void loadConfig() {
-        plugin.saveDefaultConfig();
-        config = plugin.getConfig();
-        
-        enabled = config.getBoolean("enabled", true);
-        strictMode = config.getBoolean("strict-mode", false);
-        logViolations = config.getBoolean("log-violations", true);
-        broadcastViolations = config.getBoolean("broadcast-violations", true);
-        broadcastMessageDelete = config.getString("broadcast-message-delete", "&c[EzObserver] &e玩家 &f{player} &e持有违规物品 &f{item}&e: &c{reason} &7物品已删除");
-        broadcastMessageStore = config.getString("broadcast-message-store", "&c[EzObserver] &e玩家 &f{player} &e持有违规物品 &f{item}&e: &c{reason} &7物品已没收");
-        broadcastMessageFix = config.getString("broadcast-message-fix", "&c[EzObserver] &e玩家 &f{player} &e持有违规物品 &f{item}&e: &c{reason} &a正在尝试修正违规属性……");
-        confiscateItems = config.getBoolean("confiscate-items", true);
-        confiscateMode = config.getString("confiscate-mode", "delete");
-        confiscateStoragePath = config.getString("confiscate-storage-path", "plugins/EzObserver/confiscated/");
-        maxEnchantmentLevel = config.getInt("max-enchantment-level", 10);
-        useVanillaMaxForUnconfigured = config.getBoolean("use-vanilla-max-for-unconfigured", true);
-        unconfiguredEnchantmentMultiplier = config.getDouble("unconfigured-enchantment-multiplier", 1.0);
-        maxAttributeModifierAmount = config.getInt("max-attribute-modifier-amount", 100);
-        
-        // 加载附魔限制
-        if (config.isConfigurationSection("enchantment-limits")) {
-            for (String key : config.getConfigurationSection("enchantment-limits").getKeys(false)) {
-                enchantmentLimits.put(key.toUpperCase(), config.getInt("enchantment-limits." + key));
-            }
-        }
-        
-        // 加载属性修饰符限制
-        if (config.isConfigurationSection("attribute-limits")) {
-            for (String key : config.getConfigurationSection("attribute-limits").getKeys(false)) {
-                attributeLimits.put(key.toUpperCase(), config.getDouble("attribute-limits." + key));
-            }
-        }
-        
-        // 加载修正模式设置
-        removeOverLimitEnchantments = config.getBoolean("fix-settings.remove-over-limit-enchantments", true);
-        downgradeEnchantments = config.getBoolean("fix-settings.downgrade-enchantments", false);
-        removeOverLimitAttributes = config.getBoolean("fix-settings.remove-over-limit-attributes", true);
-        downgradeAttributes = config.getBoolean("fix-settings.downgrade-attributes", false);
-        removeUnbreakable = config.getBoolean("fix-settings.remove-unbreakable", true);
-        
-        // 加载自定义禁止物品设置
-        bannedItemsEnabled = config.getBoolean("banned-items.enabled", true);
-        bannedItemsActionMode = config.getString("banned-items.action-mode", "delete");
-        bannedNameKeywords = config.getStringList("banned-items.name-keywords");
-        bannedLoreKeywords = config.getStringList("banned-items.lore-keywords");
-        
-        bannedMaterials.clear();
-        for (String materialName : config.getStringList("banned-items.banned-materials")) {
+        synchronized (configLock) {
             try {
-                Material material = Material.valueOf(materialName.toUpperCase());
-                bannedMaterials.add(material);
-            } catch (IllegalArgumentException e) {
-                plugin.getLogger().warning("无效的物品类型: " + materialName);
+                plugin.saveDefaultConfig();
+                config = plugin.getConfig();
+                
+                enabled = config.getBoolean("enabled", true);
+                strictMode = config.getBoolean("strict-mode", false);
+                logViolations = config.getBoolean("log-violations", true);
+                broadcastViolations = config.getBoolean("broadcast-violations", true);
+                broadcastMessageDelete = config.getString("broadcast-message-delete", "&c[EzObserver] &e玩家 &f{player} &e持有违规物品 &f{item}&e: &c{reason} &7物品已删除");
+                broadcastMessageStore = config.getString("broadcast-message-store", "&c[EzObserver] &e玩家 &f{player} &e持有违规物品 &f{item}&e: &c{reason} &7物品已没收");
+                broadcastMessageFix = config.getString("broadcast-message-fix", "&c[EzObserver] &e玩家 &f{player} &e持有违规物品 &f{item}&e: &c{reason} &a正在尝试修正违规属性……");
+                confiscateItems = config.getBoolean("confiscate-items", true);
+                confiscateMode = config.getString("confiscate-mode", "delete");
+                confiscateStoragePath = config.getString("confiscate-storage-path", "plugins/EzObserver/confiscated/");
+                maxEnchantmentLevel = config.getInt("max-enchantment-level", 10);
+                useVanillaMaxForUnconfigured = config.getBoolean("use-vanilla-max-for-unconfigured", true);
+                unconfiguredEnchantmentMultiplier = config.getDouble("unconfigured-enchantment-multiplier", 1.0);
+                maxAttributeModifierAmount = config.getInt("max-attribute-modifier-amount", 100);
+                
+                // 加载附魔限制
+                if (config.isConfigurationSection("enchantment-limits")) {
+                    enchantmentLimits.clear();
+                    var enchantmentSection = config.getConfigurationSection("enchantment-limits");
+                    if (enchantmentSection != null) {
+                        for (String key : enchantmentSection.getKeys(false)) {
+                            try {
+                                int value = config.getInt("enchantment-limits." + key);
+                                enchantmentLimits.put(key.toUpperCase(), value);
+                            } catch (Exception e) {
+                                plugin.getLogger().warning("无效的附魔限制配置: " + key + " = " + config.get("enchantment-limits." + key));
+                            }
+                        }
+                    }
+                }
+                
+                // 加载属性修饰符限制
+                if (config.isConfigurationSection("attribute-limits")) {
+                    attributeLimits.clear();
+                    var attributeSection = config.getConfigurationSection("attribute-limits");
+                    if (attributeSection != null) {
+                        for (String key : attributeSection.getKeys(false)) {
+                            try {
+                                double value = config.getDouble("attribute-limits." + key);
+                                attributeLimits.put(key.toUpperCase(), value);
+                            } catch (Exception e) {
+                                plugin.getLogger().warning("无效的属性限制配置: " + key + " = " + config.get("attribute-limits." + key));
+                            }
+                        }
+                    }
+                }
+                
+                // 加载修正模式设置
+                removeOverLimitEnchantments = config.getBoolean("fix-settings.remove-over-limit-enchantments", true);
+                downgradeEnchantments = config.getBoolean("fix-settings.downgrade-enchantments", false);
+                removeOverLimitAttributes = config.getBoolean("fix-settings.remove-over-limit-attributes", true);
+                downgradeAttributes = config.getBoolean("fix-settings.downgrade-attributes", false);
+                removeUnbreakable = config.getBoolean("fix-settings.remove-unbreakable", true);
+                
+                // 加载自定义禁止物品设置
+                bannedItemsEnabled = config.getBoolean("banned-items.enabled", true);
+                bannedItemsActionMode = config.getString("banned-items.action-mode", "delete");
+                bannedNameKeywords.clear();
+                bannedNameKeywords.addAll(config.getStringList("banned-items.name-keywords"));
+                bannedLoreKeywords.clear();
+                bannedLoreKeywords.addAll(config.getStringList("banned-items.lore-keywords"));
+                
+                bannedMaterials.clear();
+                for (String materialName : config.getStringList("banned-items.banned-materials")) {
+                    try {
+                        Material material = Material.valueOf(materialName.toUpperCase());
+                        bannedMaterials.add(material);
+                    } catch (IllegalArgumentException e) {
+                        plugin.getLogger().warning("无效的物品类型: " + materialName);
+                    }
+                }
+                
+                // 加载禁止的刷怪蛋类型
+                bannedSpawnEggs.clear();
+                for (String materialName : config.getStringList("banned-items.banned-spawn-eggs")) {
+                    try {
+                        Material material = Material.valueOf(materialName.toUpperCase());
+                        bannedSpawnEggs.add(material);
+                    } catch (IllegalArgumentException e) {
+                        plugin.getLogger().warning("无效的刷怪蛋类型: " + materialName);
+                    }
+                }
+                
+                // 加载OP物品检测设置
+                opItemsEnabled = config.getBoolean("op-items.enabled", true);
+                maxTotalEnchantmentLevel = config.getInt("op-items.max-total-enchantment-level", 50);
+                maxEnchantmentMultiplier = config.getDouble("op-items.max-enchantment-multiplier", 2.0);
+                maxAttributeCount = config.getInt("op-items.max-attribute-count", 10);
+                maxAttributeMultiplier = config.getDouble("op-items.max-attribute-multiplier", 5.0);
+                
+                // 加载药水检测设置
+                potionCheckEnabled = config.getBoolean("potion-check.enabled", true);
+                maxPotionDuration = config.getInt("potion-check.max-duration", 600);
+                maxPotionAmplifier = config.getInt("potion-check.max-amplifier", 2);
+                
+                bannedPotionEffects.clear();
+                for (String effect : config.getStringList("potion-check.banned-effects")) {
+                    bannedPotionEffects.add(effect.toUpperCase());
+                }
+                
+                potionEffectLimits.clear();
+                if (config.isConfigurationSection("potion-check.effect-limits")) {
+                    var effectLimitsSection = config.getConfigurationSection("potion-check.effect-limits");
+                    if (effectLimitsSection != null) {
+                        for (String key : effectLimitsSection.getKeys(false)) {
+                            try {
+                                int value = config.getInt("potion-check.effect-limits." + key);
+                                potionEffectLimits.put(key.toUpperCase(), value);
+                            } catch (Exception e) {
+                                plugin.getLogger().warning("无效的药水效果限制配置: " + key + " = " + config.get("potion-check.effect-limits." + key));
+                            }
+                        }
+                    }
+                }
+                
+                potionDurationLimits.clear();
+                if (config.isConfigurationSection("potion-check.duration-limits")) {
+                    var durationLimitsSection = config.getConfigurationSection("potion-check.duration-limits");
+                    if (durationLimitsSection != null) {
+                        for (String key : durationLimitsSection.getKeys(false)) {
+                            try {
+                                int value = config.getInt("potion-check.duration-limits." + key);
+                                potionDurationLimits.put(key.toUpperCase(), value);
+                            } catch (Exception e) {
+                                plugin.getLogger().warning("无效的药水持续时间限制配置: " + key + " = " + config.get("potion-check.duration-limits." + key));
+                            }
+                        }
+                    }
+                }
+                
+                // 加载高级功能配置
+                realTimeMonitoringEnabled = config.getBoolean("advanced.real-time-monitoring.enabled", true);
+                autoFixEnabled = config.getBoolean("advanced.auto-fix.enabled", false);
+                autoDeleteEnabled = config.getBoolean("advanced.auto-delete.enabled", false);
+                realTimeScanInterval = config.getInt("advanced.real-time-monitoring.scan-interval", 20);
+                maxViolationHistory = config.getInt("advanced.max-violation-history", 100);
+                reportGenerationEnabled = config.getBoolean("advanced.report-generation.enabled", true);
+                reportRetentionDays = config.getLong("advanced.report-generation.retention-days", 30);
+                permissionBypassEnabled = config.getBoolean("advanced.permission-bypass.enabled", true);
+                
+                plugin.getLogger().info("配置加载完成");
+            } catch (Exception e) {
+                plugin.getLogger().severe("配置加载失败: " + e.getMessage());
+                plugin.getLogger().severe("异常详情: " + e.getClass().getName() + ": " + e.getMessage());
             }
         }
-        
-        // 加载禁止的刷怪蛋类型
-        bannedSpawnEggs.clear();
-        for (String materialName : config.getStringList("banned-items.banned-spawn-eggs")) {
-            try {
-                Material material = Material.valueOf(materialName.toUpperCase());
-                bannedSpawnEggs.add(material);
-            } catch (IllegalArgumentException e) {
-                plugin.getLogger().warning("无效的刷怪蛋类型: " + materialName);
-            }
-        }
-        
-        // 加载OP物品检测设置
-        opItemsEnabled = config.getBoolean("op-items.enabled", true);
-        maxTotalEnchantmentLevel = config.getInt("op-items.max-total-enchantment-level", 50);
-        maxEnchantmentMultiplier = config.getDouble("op-items.max-enchantment-multiplier", 2.0);
-        maxAttributeCount = config.getInt("op-items.max-attribute-count", 10);
-        maxAttributeMultiplier = config.getDouble("op-items.max-attribute-multiplier", 5.0);
-        
-        // 加载药水检测设置
-        potionCheckEnabled = config.getBoolean("potion-check.enabled", true);
-        maxPotionDuration = config.getInt("potion-check.max-duration", 600);
-        maxPotionAmplifier = config.getInt("potion-check.max-amplifier", 2);
-        
-        bannedPotionEffects.clear();
-        for (String effect : config.getStringList("potion-check.banned-effects")) {
-            bannedPotionEffects.add(effect.toUpperCase());
-        }
-        
-        potionEffectLimits.clear();
-        if (config.isConfigurationSection("potion-check.effect-limits")) {
-            for (String key : config.getConfigurationSection("potion-check.effect-limits").getKeys(false)) {
-                potionEffectLimits.put(key.toUpperCase(), config.getInt("potion-check.effect-limits." + key));
-            }
-        }
-        
-        potionDurationLimits.clear();
-        if (config.isConfigurationSection("potion-check.duration-limits")) {
-            for (String key : config.getConfigurationSection("potion-check.duration-limits").getKeys(false)) {
-                potionDurationLimits.put(key.toUpperCase(), config.getInt("potion-check.duration-limits." + key));
-            }
-        }
-        
-        // 加载高级功能配置
-        realTimeMonitoringEnabled = config.getBoolean("advanced.real-time-monitoring.enabled", true);
-        autoFixEnabled = config.getBoolean("advanced.auto-fix.enabled", false);
-        autoDeleteEnabled = config.getBoolean("advanced.auto-delete.enabled", false);
-        realTimeScanInterval = config.getInt("advanced.real-time-monitoring.scan-interval", 20);
-        maxViolationHistory = config.getInt("advanced.max-violation-history", 100);
-        reportGenerationEnabled = config.getBoolean("advanced.report-generation.enabled", true);
-        reportRetentionDays = config.getLong("advanced.report-generation.retention-days", 30);
-        permissionBypassEnabled = config.getBoolean("advanced.permission-bypass.enabled", true);
     }
 
     public void reloadConfig() {

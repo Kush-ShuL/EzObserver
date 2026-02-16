@@ -1,4 +1,4 @@
-package top.mc_plfd_host.ezobserver.checker;
+ package top.mc_plfd_host.ezobserver.checker;
 
 import org.bukkit.Material;
 import org.bukkit.attribute.Attribute;
@@ -440,11 +440,10 @@ public class ItemChecker {
             return violations;
         }
         
-        if (!item.hasItemMeta() || !(item.getItemMeta() instanceof PotionMeta)) {
+        // 使用Java 16+模式匹配
+        if (!(item.getItemMeta() instanceof PotionMeta potionMeta)) {
             return violations;
         }
-        
-        PotionMeta potionMeta = (PotionMeta) item.getItemMeta();
         
         // 检查自定义药水效果
         if (potionMeta.hasCustomEffects()) {
@@ -453,11 +452,8 @@ public class ItemChecker {
             }
         }
         
-        // 检查基础药水效果
-        if (potionMeta.getBasePotionType() != null) {
-            // 基础药水效果通常是原版的，跳过等级和时间检查，除非它是特殊的
-            // 这里我们主要检查自定义效果
-        }
+        // 基础药水效果通常是原版的，跳过等级和时间检查，除非它是特殊的
+        // 这里我们主要检查自定义效果
         
         return violations;
     }
@@ -563,8 +559,8 @@ public class ItemChecker {
         
         // 2. 检查是否有自定义NBT数据（通过PersistentDataContainer或其他方式）
         // 在较新版本的Bukkit中，SpawnEggMeta可以获取生成的实体类型
-        if (meta instanceof SpawnEggMeta) {
-            SpawnEggMeta spawnEggMeta = (SpawnEggMeta) meta;
+        // 使用Java 16+模式匹配
+        if (meta instanceof SpawnEggMeta spawnEggMeta) {
             
             // 获取刷怪蛋应该生成的实体类型（根据物品类型）
             String expectedEntityType = getExpectedEntityType(item.getType());
@@ -584,8 +580,11 @@ public class ItemChecker {
                             item.getType().name(), actualTypeName));
                     }
                 }
+            } catch (NoSuchMethodException e) {
+                // 方法不存在，使用备用检测方法
             } catch (Exception e) {
-                // 方法不存在或调用失败，使用备用检测方法
+                // 其他异常，记录日志但不中断检查
+                plugin.getLogger().warning("刷怪蛋检测反射调用失败: " + e.getMessage());
             }
             
             // 尝试通过 getSpawnedEntity() 方法检查（Paper 1.20.4+）
@@ -597,8 +596,11 @@ public class ItemChecker {
                     // 检查实体快照中的数据
                     violations.add(String.format("刷怪蛋 %s 包含自定义实体数据 (疑似作弊物品)", item.getType().name()));
                 }
+            } catch (NoSuchMethodException e) {
+                // 方法不存在，忽略
             } catch (Exception e) {
-                // 方法不存在或调用失败
+                // 其他异常，记录日志但不中断检查
+                plugin.getLogger().warning("刷怪蛋实体检测反射调用失败: " + e.getMessage());
             }
         }
         
@@ -653,11 +655,8 @@ public class ItemChecker {
         
         // 检查持久数据容器是否有自定义数据
         // 在Bukkit API中，我们可以通过检查PersistentDataContainer来检测
-        if (meta.getPersistentDataContainer() != null && !meta.getPersistentDataContainer().isEmpty()) {
-            return true;
-        }
-        
-        return false;
+        // getPersistentDataContainer()永远不会返回null，所以不需要null检查
+        return !meta.getPersistentDataContainer().isEmpty();
     }
 
     /**
@@ -672,11 +671,10 @@ public class ItemChecker {
             return violations;
         }
         
-        if (!item.hasItemMeta() || !(item.getItemMeta() instanceof FireworkMeta)) {
+        // 使用Java 16+模式匹配
+        if (!(item.getItemMeta() instanceof FireworkMeta fireworkMeta)) {
             return violations;
         }
-        
-        FireworkMeta fireworkMeta = (FireworkMeta) item.getItemMeta();
         int power = fireworkMeta.getPower();
         
         // 正常飞行时间为 1-3（power 0-2 对应飞行时间 1-3）
@@ -707,23 +705,16 @@ public class ItemChecker {
         
         ItemMeta meta = item.getItemMeta();
         
-        // 检查是否有 BlockStateMeta
-        if (meta instanceof BlockStateMeta) {
-            BlockStateMeta blockStateMeta = (BlockStateMeta) meta;
-            
+        // 检查是否有 BlockStateMeta - 使用Java 16+模式匹配
+        if (meta instanceof BlockStateMeta blockStateMeta && blockStateMeta.hasBlockState()) {
             // 尝试获取方块数据
-            if (blockStateMeta.hasBlockState()) {
-                try {
-                    BlockData blockData = blockStateMeta.getBlockState().getBlockData();
-                    if (blockData instanceof Piston) {
-                        Piston piston = (Piston) blockData;
-                        if (piston.isExtended()) {
-                            violations.add(String.format("检测到无头活塞: %s 处于伸出状态 (疑似作弊物品)", type.name()));
-                        }
-                    }
-                } catch (Exception e) {
-                    // 忽略异常
+            try {
+                BlockData blockData = blockStateMeta.getBlockState().getBlockData();
+                if (blockData instanceof Piston piston && piston.isExtended()) {
+                    violations.add(String.format("检测到无头活塞: %s 处于伸出状态 (疑似作弊物品)", type.name()));
                 }
+            } catch (Exception e) {
+                // 忽略异常
             }
         }
         
@@ -749,17 +740,15 @@ public class ItemChecker {
             return violations;
         }
         
-        BlockStateMeta blockStateMeta = (BlockStateMeta) item.getItemMeta();
-        if (!blockStateMeta.hasBlockState()) {
+        // 使用Java 16+模式匹配
+        if (!(item.getItemMeta() instanceof BlockStateMeta blockStateMeta) || !blockStateMeta.hasBlockState()) {
             return violations;
         }
         
-        BlockState blockState = blockStateMeta.getBlockState();
-        if (!(blockState instanceof InventoryHolder)) {
+        if (!(blockStateMeta.getBlockState() instanceof InventoryHolder holder)) {
             return violations;
         }
         
-        InventoryHolder holder = (InventoryHolder) blockState;
         Inventory inventory = holder.getInventory();
         
         int violatingItemCount = 0;
@@ -834,17 +823,16 @@ public class ItemChecker {
         
         ItemMeta meta = item.getItemMeta();
         
-        // 检查是否是 BundleMeta（1.21.4+）
-        if (!(meta instanceof BundleMeta)) {
+        // 检查是否是 BundleMeta（1.21.4+）- 使用Java 16+模式匹配
+        if (!(meta instanceof BundleMeta bundleMeta)) {
             return violations;
         }
         
-        BundleMeta bundleMeta = (BundleMeta) meta;
-        
         // 获取收纳袋中的物品
+        // getItems()永远不会返回null，所以不需要null检查
         List<ItemStack> contents = bundleMeta.getItems();
         
-        if (contents == null || contents.isEmpty()) {
+        if (contents.isEmpty()) {
             return violations;
         }
         
@@ -893,7 +881,8 @@ public class ItemChecker {
             type == Material.ARMOR_STAND) {
             
             // 检查持久数据容器
-            if (meta.getPersistentDataContainer() != null && !meta.getPersistentDataContainer().isEmpty()) {
+            // getPersistentDataContainer()永远不会返回null，所以不需要null检查
+            if (!meta.getPersistentDataContainer().isEmpty()) {
                 return true;
             }
             
@@ -901,6 +890,7 @@ public class ItemChecker {
             try {
                 // 检查是否有自定义显示名称（通常被篡改的物品会有特殊名称）
                 if (meta.hasDisplayName()) {
+                    // getDisplayName()在hasDisplayName()为true时不会返回null
                     String name = meta.getDisplayName();
                     // 检查是否包含可疑关键词
                     if (name.contains("隐形") || name.contains("Invisible") ||
@@ -941,108 +931,101 @@ public class ItemChecker {
         
         ItemMeta meta = item.getItemMeta();
         
-        // 检查空成书
-        if (type == Material.WRITTEN_BOOK) {
-            if (meta instanceof BookMeta) {
-                BookMeta bookMeta = (BookMeta) meta;
-                
-                // 成书应该有页面内容
-                if (bookMeta.getPageCount() == 0) {
-                    violations.add("空成书: 没有页面内容 (疑似作弊物品)");
-                }
-                
-                // 成书应该有作者和标题
-                if (!bookMeta.hasAuthor() || !bookMeta.hasTitle()) {
-                    violations.add("空成书: 缺少作者或标题 (疑似作弊物品)");
-                }
+        // 检查空成书 - 使用Java 16+模式匹配
+        if (type == Material.WRITTEN_BOOK && meta instanceof BookMeta bookMeta) {
+            // 成书应该有页面内容
+            if (bookMeta.getPageCount() == 0) {
+                violations.add("空成书: 没有页面内容 (疑似作弊物品)");
+            }
+            
+            // 成书应该有作者和标题
+            if (!bookMeta.hasAuthor() || !bookMeta.hasTitle()) {
+                violations.add("空成书: 缺少作者或标题 (疑似作弊物品)");
             }
         }
         
-        // 检查空附魔书
-        if (type == Material.ENCHANTED_BOOK) {
-            if (meta instanceof EnchantmentStorageMeta) {
-                EnchantmentStorageMeta enchantMeta = (EnchantmentStorageMeta) meta;
-                
-                // 附魔书应该有存储的附魔
-                if (!enchantMeta.hasStoredEnchants() || enchantMeta.getStoredEnchants().isEmpty()) {
-                    violations.add("空附魔书: 没有存储的附魔 (疑似作弊物品)");
-                }
+        // 检查空附魔书 - 使用Java 16+模式匹配
+        if (type == Material.ENCHANTED_BOOK && meta instanceof EnchantmentStorageMeta enchantMeta) {
+            // 附魔书应该有存储的附魔
+            if (!enchantMeta.hasStoredEnchants() || enchantMeta.getStoredEnchants().isEmpty()) {
+                violations.add("空附魔书: 没有存储的附魔 (疑似作弊物品)");
             }
         }
         
-        // 检查空地图
-        if (type == Material.FILLED_MAP) {
-            if (meta instanceof MapMeta) {
-                MapMeta mapMeta = (MapMeta) meta;
-                
-                // 已填充的地图应该有地图视图
-                // 注意：在某些版本中，可能需要使用不同的方法来检查
+        // 检查空地图 - 使用Java 16+模式匹配
+        if (type == Material.FILLED_MAP && meta instanceof MapMeta mapMeta) {
+            // 已填充的地图应该有地图视图
+            // 注意：在某些版本中，可能需要使用不同的方法来检查
+            try {
+                // 尝试检查是否有地图视图
+                if (!mapMeta.hasMapView()) {
+                    violations.add("空地图: 没有地图数据 (疑似作弊物品)");
+                }
+            } catch (Exception e) {
+                // 如果方法不存在，使用备用检查
+                // 检查是否有地图 ID（通过反射）
                 try {
-                    // 尝试检查是否有地图视图
-                    if (!mapMeta.hasMapView()) {
-                        violations.add("空地图: 没有地图数据 (疑似作弊物品)");
+                    java.lang.reflect.Method hasMapIdMethod = mapMeta.getClass().getMethod("hasMapId");
+                    Boolean hasMapId = (Boolean) hasMapIdMethod.invoke(mapMeta);
+                    if (!hasMapId) {
+                        violations.add("空地图: 没有地图ID (疑似作弊物品)");
                     }
-                } catch (Exception e) {
-                    // 如果方法不存在，使用备用检查
-                    // 检查是否有地图 ID（通过反射）
-                    try {
-                        java.lang.reflect.Method hasMapIdMethod = mapMeta.getClass().getMethod("hasMapId");
-                        Boolean hasMapId = (Boolean) hasMapIdMethod.invoke(mapMeta);
-                        if (!hasMapId) {
-                            violations.add("空地图: 没有地图ID (疑似作弊物品)");
-                        }
-                    } catch (Exception ex) {
-                        // 忽略
-                    }
+                } catch (Exception ex) {
+                    // 忽略
                 }
             }
         }
         
         // 检查知识之书
-        if (type == Material.KNOWLEDGE_BOOK) {
-            // 知识之书应该有配方数据
-            // 在 Bukkit API 中，KnowledgeBookMeta 用于检查
-            try {
-                Class<?> knowledgeBookMetaClass = Class.forName("org.bukkit.inventory.meta.KnowledgeBookMeta");
-                if (knowledgeBookMetaClass.isInstance(meta)) {
-                    java.lang.reflect.Method hasRecipesMethod = meta.getClass().getMethod("hasRecipes");
-                    Boolean hasRecipes = (Boolean) hasRecipesMethod.invoke(meta);
-                    if (!hasRecipes) {
-                        violations.add("空知识之书: 没有配方数据 (疑似作弊物品)");
-                    }
-                }
-            } catch (Exception e) {
-                // 忽略
+if (type == Material.KNOWLEDGE_BOOK) {
+    // 知识之书应该有配方数据
+    // 在 Bukkit API 中，KnowledgeBookMeta 用于检查
+    try {
+        Class<?> knowledgeBookMetaClass = Class.forName("org.bukkit.inventory.meta.KnowledgeBookMeta");
+        if (knowledgeBookMetaClass.isInstance(meta)) {
+            java.lang.reflect.Method hasRecipesMethod = meta.getClass().getMethod("hasRecipes");
+            Boolean hasRecipes = (Boolean) hasRecipesMethod.invoke(meta);
+            if (hasRecipes != null && !hasRecipes) {
+                violations.add("空知识之书: 没有配方数据 (疑似作弊物品)");
             }
         }
-        
-        // 检查是否有异常的 enchantment_glint_override（发光效果）
-        // 正常物品不应该有这个属性，除非是附魔物品
-        // 注意：hasEnchantGlint() 是 1.21+ 的新方法，需要使用反射兼容旧版本
-        try {
-            java.lang.reflect.Method hasEnchantGlintMethod = meta.getClass().getMethod("hasEnchantGlint");
-            Boolean hasEnchantGlint = (Boolean) hasEnchantGlintMethod.invoke(meta);
-            
-            if (hasEnchantGlint != null && hasEnchantGlint) {
-                // 如果物品有发光效果但没有附魔，可能是作弊物品
-                if (item.getEnchantments().isEmpty()) {
-                    // 对于附魔书，检查存储的附魔
-                    if (type == Material.ENCHANTED_BOOK) {
-                        if (meta instanceof EnchantmentStorageMeta) {
-                            EnchantmentStorageMeta enchantMeta = (EnchantmentStorageMeta) meta;
-                            if (!enchantMeta.hasStoredEnchants() || enchantMeta.getStoredEnchants().isEmpty()) {
-                                violations.add("异常发光效果: 物品有发光但没有附魔 (疑似作弊物品)");
-                            }
-                        }
-                    } else {
-                        // 其他物品有发光但没有附魔
-                        violations.add("异常发光效果: 物品有发光但没有附魔 (疑似作弊物品)");
-                    }
+    } catch (ClassNotFoundException e) {
+        // KnowledgeBookMeta 类不存在，忽略此检查
+    } catch (NoSuchMethodException e) {
+        // hasRecipes 方法不存在，忽略此检查
+    } catch (Exception e) {
+        // 其他异常，记录日志但不中断检查
+        plugin.getLogger().warning("知识之书检测反射调用失败: " + e.getMessage());
+    }
+}
+
+// 检查是否有异常的 enchantment_glint_override（发光效果）
+// 正常物品不应该有这个属性，除非是附魔物品
+// 注意：hasEnchantGlint() 是 1.21+ 的新方法，需要使用反射兼容旧版本
+try {
+    java.lang.reflect.Method hasEnchantGlintMethod = meta.getClass().getMethod("hasEnchantGlint");
+    Boolean hasEnchantGlint = (Boolean) hasEnchantGlintMethod.invoke(meta);
+    
+    if (hasEnchantGlint != null && hasEnchantGlint) {
+        // 如果物品有发光效果但没有附魔，可能是作弊物品
+        if (item.getEnchantments().isEmpty()) {
+            // 对于附魔书，检查存储的附魔 - 使用Java 16+模式匹配
+            if (type == Material.ENCHANTED_BOOK && meta instanceof EnchantmentStorageMeta enchantMeta) {
+                if (!enchantMeta.hasStoredEnchants() || enchantMeta.getStoredEnchants().isEmpty()) {
+                    violations.add("异常发光效果: 物品有发光但没有附魔 (疑似作弊物品)");
                 }
+            } else {
+                // 其他物品有发光但没有附魔
+                violations.add("异常发光效果: 物品有发光但没有附魔 (疑似作弊物品)");
             }
-        } catch (Exception e) {
-            // 方法不存在（旧版本），忽略此检查
         }
+    }
+} catch (NoSuchMethodException e) {
+    // 方法不存在（旧版本），忽略此检查
+} catch (Exception e) {
+    // 其他异常，记录日志但不中断检查
+    plugin.getLogger().warning("发光效果检测反射调用失败: " + e.getMessage());
+}
         
         return violations;
     }
