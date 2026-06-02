@@ -7,7 +7,7 @@ EzObserver 旨在解决这一问题，它通过实时监听服务器内物品的
 
 ## 技术栈
 *   **语言**: Java
-*   **构建工具**: Maven
+*   **构建工具**: Gradle
 *   **API**: Spigot/Paper API (兼容 1.20 版本及以上，支持 Folia)
 
 ## 功能详情

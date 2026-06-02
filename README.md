@@ -7,7 +7,7 @@ EzObserver aims to address this issue by real-time monitoring of item movement e
 
 ## Technology Stack
 *   **Language**: Java
-*   **Build Tool**: Maven
+*   **Build Tool**: Gradle
 *   **API**: Spigot/Paper API (compatible with 1.20+ versions, supports Folia)
 
 ## Feature Details
