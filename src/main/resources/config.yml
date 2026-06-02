@@ -220,3 +220,24 @@ potion-check:
     FIRE_RESISTANCE: 600 # 火焰抗性最大10分钟
     WATER_BREATHING: 600 # 水下呼吸最大10分钟
     SLOW_FALLING: 600  # 缓降最大10分钟
+
+# 忽略的 NBT 路径(基于 PersistentDataContainer 的 NamespacedKey 前缀匹配)
+# 当物品的任意 PDC 键的命名空间或完整键 (namespace:key) 以列表中任一前缀开头时,
+# 跳过对该物品的属性修饰符检测,以兼容合法来源的物品。
+# 匹配为大小写不敏感,例如 "MythicMobs" 也会匹配命名空间 "mythicmobs"。
+# 留空则不做此豁免。
+ignored-nbt-paths:
+  - "MythicMobs"     # 神话怪物插件: 命名空间 mythiCmobs
+  - "ItemsAdder"     # 自定义物品插件: 命名空间 itemsadder
+  - "MMOItems"       # MMO 物品插件: 命名空间 mmoitems
+
+# 允许的特殊附魔组合(原版不可同时存在但服务器允许的组合,例如锋利+亡灵杀手)
+# 匹配规则:物品的附魔集合(附魔名:等级)必须与某条配置完全相同才会被豁免,
+# 即物品不能比配置多也不能少任何附魔,等级也必须一致。
+# 附魔名使用 Bukkit 的 NamespacedKey 子键(小写,以下划线分隔),
+# 例如 sharpness / smite / protection / blast_protection。
+# 大小写不敏感,例如 "Sharpness:5" 与 "sharpness:5" 等价。
+# 留空则不做此豁免。
+allowed-enchantment-combinations:
+  - "sharpness:5,smite:5"               # 锋利 V + 亡灵杀手 V
+  - "protection:4,blast_protection:4"   # 保护 IV + 爆炸保护 IV

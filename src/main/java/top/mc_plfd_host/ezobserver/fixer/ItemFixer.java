@@ -230,9 +230,14 @@ public class ItemFixer {
         if (conflictManager == null || !conflictManager.isConflictDetectionEnabled()) {
             return;
         }
-        
+
+        // 若物品附魔完全匹配某条允许的附魔组合,跳过冲突修正
+        if (configManager.isAllowedEnchantmentCombination(item)) {
+            return;
+        }
+
         List<String> removedEnchantments = conflictManager.removeConflictingEnchantments(item);
-        
+
         if (!removedEnchantments.isEmpty()) {
             plugin.getLogger().info("已移除冲突附魔: " + String.join(", ", removedEnchantments));
         }
@@ -256,23 +261,24 @@ public class ItemFixer {
         }
 
         int maxTotalLevel = configManager.getMaxTotalEnchantmentLevel();
-        
+
         // 如果总等级超限，需要移除一些附魔
-        if (totalLevel > maxTotalLevel) {
+        // 但若物品包含被允许的附魔组合子集,则总等级维度豁免
+        if (totalLevel > maxTotalLevel && !configManager.containsAllowedEnchantmentCombination(item)) {
             plugin.getLogger().info("检测到OP物品: 附魔总等级 " + totalLevel + " 超过限制 " + maxTotalLevel);
-            
+
             // 按等级从高到低排序，优先移除高等级附魔
             List<Map.Entry<Enchantment, Integer>> sortedEnchants = new ArrayList<>(enchantments.entrySet());
             sortedEnchants.sort((a, b) -> b.getValue() - a.getValue());
-            
+
             for (Map.Entry<Enchantment, Integer> entry : sortedEnchants) {
                 if (totalLevel <= maxTotalLevel) {
                     break;
                 }
-                
+
                 Enchantment enchant = entry.getKey();
                 int level = entry.getValue();
-                
+
                 item.removeEnchantment(enchant);
                 totalLevel -= level;
                 plugin.getLogger().info("移除OP附魔: " + enchant.getKey().getKey() + " (等级 " + level + ") 以降低总等级");
@@ -282,6 +288,12 @@ public class ItemFixer {
 
     private void fixAttributeModifiers(ItemMeta meta) {
         if (!meta.hasAttributeModifiers()) {
+            return;
+        }
+
+        // 若该物品来自被忽略的 NBT 路径(如 MythicMobs/ItemsAdder/MMOItems),
+        // 跳过属性修饰符修正,保留其合法来源
+        if (configManager.isIgnoredNbtMeta(meta)) {
             return;
         }
 
@@ -346,6 +358,12 @@ public class ItemFixer {
         }
 
         if (!meta.hasAttributeModifiers()) {
+            return;
+        }
+
+        // 若该物品来自被忽略的 NBT 路径(如 MythicMobs/ItemsAdder/MMOItems),
+        // 跳过属性数量修正,保留其合法来源
+        if (configManager.isIgnoredNbtMeta(meta)) {
             return;
         }
 
@@ -669,11 +687,11 @@ public class ItemFixer {
             return;
         }
         
-        // 使用Java 16+模式匹配
-        if (!(blockStateMeta.getBlockState() instanceof InventoryHolder holder)) {
+        BlockState blockState = blockStateMeta.getBlockState();
+        if (!(blockState instanceof InventoryHolder holder)) {
             return;
         }
-        
+
         Inventory inventory = holder.getInventory();
         
         boolean changed = false;

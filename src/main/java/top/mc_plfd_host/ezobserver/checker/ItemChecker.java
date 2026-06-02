@@ -162,18 +162,24 @@ public class ItemChecker {
      */
     private List<String> checkConflictingEnchantments(ItemStack item) {
         List<String> violations = new ArrayList<>();
-        
+
         if (conflictManager == null || !conflictManager.isConflictDetectionEnabled()) {
             return violations;
         }
-        
+
+        // 若物品附魔完全匹配某条允许的附魔组合(如 sharpness:5,smite:5),
+        // 跳过冲突检查,避免对服务器明确允许的组合误报
+        if (configManager.isAllowedEnchantmentCombination(item)) {
+            return violations;
+        }
+
         List<Set<String>> conflictGroups = conflictManager.findConflictingEnchantments(item);
-        
+
         for (Set<String> conflictGroup : conflictGroups) {
             violations.add(String.format("冲突附魔组: %s (这些附魔互相冲突，将被全部移除)",
                 String.join(", ", conflictGroup)));
         }
-        
+
         return violations;
     }
 
@@ -198,11 +204,17 @@ public class ItemChecker {
 
     private List<String> checkAttributeModifiers(ItemMeta meta) {
         List<String> violations = new ArrayList<>();
-        
+
         if (!meta.hasAttributeModifiers()) {
             return violations;
         }
-        
+
+        // 若该物品来自被忽略的 NBT 路径(如 MythicMobs/ItemsAdder/MMOItems),
+        // 跳过属性修饰符检测,避免误判合法物品
+        if (configManager.isIgnoredNbtMeta(meta)) {
+            return violations;
+        }
+
         for (Attribute attribute : Attribute.values()) {
             Collection<AttributeModifier> modifiers = meta.getAttributeModifiers(attribute);
             if (modifiers != null && !modifiers.isEmpty()) {
@@ -375,54 +387,64 @@ public class ItemChecker {
 
     private List<String> checkOpItem(ItemStack item) {
         List<String> violations = new ArrayList<>();
-        
+
         if (!configManager.isOpItemsEnabled()) {
             return violations;
         }
-        
+
+        // 物品是否来自被忽略的 NBT 路径(如 MythicMobs/ItemsAdder/MMOItems)
+        final boolean ignoredNbt = configManager.isIgnoredNbtItem(item);
+
+        // 物品是否包含某条允许的附魔组合子集(用于总附魔等级检查的豁免)
+        final boolean hasAllowedCombo = configManager.containsAllowedEnchantmentCombination(item);
+
         // 检查附魔总等级
         Map<Enchantment, Integer> enchantments = item.getEnchantments();
         int totalLevel = 0;
         for (Map.Entry<Enchantment, Integer> entry : enchantments.entrySet()) {
             totalLevel += entry.getValue();
-            
+
             // 检查单个附魔是否超过原版最大等级的倍数
             Enchantment enchant = entry.getKey();
             int level = entry.getValue();
             int maxLevel = enchant.getMaxLevel();
             double maxAllowed = maxLevel * configManager.getMaxEnchantmentMultiplier();
-            
+
             if (level > maxAllowed) {
                 violations.add(String.format("OP附魔: %s 等级 %d 超过原版最大等级 %d 的 %.1f 倍",
                     enchant.getKey().getKey(), level, maxLevel, configManager.getMaxEnchantmentMultiplier()));
             }
         }
-        
-        if (totalLevel > configManager.getMaxTotalEnchantmentLevel()) {
+
+        // 总附魔等级超限检查:若物品包含被允许的附魔组合,该项豁免
+        if (totalLevel > configManager.getMaxTotalEnchantmentLevel() && !hasAllowedCombo) {
             violations.add(String.format("OP物品: 附魔总等级 %d 超过限制 %d",
                 totalLevel, configManager.getMaxTotalEnchantmentLevel()));
         }
-        
-        // 检查属性修饰符数量和数值
+
+        // 检查属性修饰符数量和数值 - 若来自被忽略的 NBT 路径则跳过
+        if (ignoredNbt) {
+            return violations;
+        }
         if (item.hasItemMeta()) {
             ItemMeta meta = item.getItemMeta();
             if (meta.hasAttributeModifiers()) {
                 int attributeCount = 0;
-                
+
                 for (Attribute attribute : Attribute.values()) {
                     Collection<AttributeModifier> modifiers = meta.getAttributeModifiers(attribute);
                     if (modifiers != null && !modifiers.isEmpty()) {
                         attributeCount += modifiers.size();
                     }
                 }
-                
+
                 if (attributeCount > configManager.getMaxAttributeCount()) {
                     violations.add(String.format("OP物品: 属性修饰符数量 %d 超过限制 %d",
                         attributeCount, configManager.getMaxAttributeCount()));
                 }
             }
         }
-        
+
         return violations;
     }
 

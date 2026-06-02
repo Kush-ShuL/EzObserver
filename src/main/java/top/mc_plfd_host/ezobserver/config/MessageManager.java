@@ -120,6 +120,7 @@ public class MessageManager {
             case "delete", "default" -> getMessage("broadcast-delete");
             case "store" -> getMessage("broadcast-store");
             case "fix" -> getMessage("broadcast-fix");
+            default -> getMessage("broadcast-delete");
         };
     }
 
